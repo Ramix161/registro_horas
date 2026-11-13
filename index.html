@@ -42,8 +42,8 @@
 <!-- PANTALLA 1: datos del técnico -->
 <div id="pantallaInicio" class="card">
   <label>Nombre del técnico <input id="nombre" placeholder="Ej. Juan Pérez" maxlength="80"></label>
-  <label>Número (10 dígitos)
-    <input id="numero" inputmode="numeric" maxlength="10" placeholder="0000000000" autocomplete="off">
+  <label>Llamada de servicio (5 dígitos)
+    <input id="numero" inputmode="numeric" maxlength="5" placeholder="00000" autocomplete="off">
   </label>
   <div class="error" id="errorInicio"></div>
   <p class="info">Fecha: <span id="fechaHoy"></span></p>
@@ -259,7 +259,7 @@ function iniciarJornada() {
   const nombre = $("nombre").value.trim();
   const numero = $("numero").value.trim();
   if (!nombre) { $("errorInicio").textContent = "Escribe el nombre."; $("nombre").focus(); return; }
-  if (!/^\d{10}$/.test(numero)) { $("errorInicio").textContent = "El número debe tener exactamente 10 dígitos."; $("numero").focus(); return; }
+  if (!/^\d{5}$/.test(numero)) { $("errorInicio").textContent = "El número debe tener exactamente 5 dígitos."; $("numero").focus(); return; }
   estado = { id: nuevoId(), nombre, numero, fecha: fechaHoy(), marcas: {}, ubic: {}, pausas: [], cierre: null };
   guardarLocal();
   obtenerUbicacion();   // solo para que el navegador pida el permiso desde el inicio
@@ -583,7 +583,7 @@ async function cargarEnCurso() {
 
 // ======================= ARRANQUE =======================
 $("fechaHoy").textContent = fechaHoy();
-$("numero").addEventListener("input", e => e.target.value = e.target.value.replace(/\D/g, "").slice(0, 10));
+$("numero").addEventListener("input", e => e.target.value = e.target.value.replace(/\D/g, "").slice(0, 5));
 $("btnIniciar").onclick = iniciarJornada;
 $("btnPausa").onclick = alternarPausa;
 $("btnCerrar").onclick = cerrarMarcaje;
