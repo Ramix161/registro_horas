@@ -3,9 +3,10 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="referrer" content="no-referrer">
 <title>Registro de Horas - Técnicos</title>
 <style>
-  body { font-family: system-ui, sans-serif; max-width: 640px; margin: 0 auto; padding: 12px; background:#f1f3f6; color:#1f2937; }
+  body { font-family: system-ui, sans-serif; max-width: 680px; margin: 0 auto; padding: 12px; background:#f1f3f6; color:#1f2937; }
   h1 { font-size: 1.3rem; margin: 8px 0 14px; }
   .card { background:#fff; border-radius:10px; padding:16px; box-shadow:0 1px 3px #0002; margin-bottom:14px; }
   label { display:block; font-size:.9rem; margin-bottom:10px; }
@@ -19,7 +20,14 @@
   .btn-pausa.reanudar { background:#16a34a; }
   .btn-cerrar { background:#dc2626; color:#fff; }
   .btn-secundario { background:#e5e7eb; color:#111; }
+  .btn-link { background:none; color:#2563eb; padding:6px 0; font-size:.9rem; text-decoration:underline; }
   .oculto { display:none !important; }
+  .barra-usuario { display:flex; align-items:center; gap:8px; font-size:.9rem; margin-bottom:12px; }
+  .barra-usuario span { flex:1; }
+  .barra-usuario button { padding:6px 10px; font-size:.85rem; }
+  .pestanas { display:flex; gap:6px; margin-bottom:12px; }
+  .pestanas button { flex:1; background:#e5e7eb; }
+  .pestanas button.activa { background:#1e3a8a; color:#fff; }
   #tramoActual { text-align:center; font-size:1rem; color:#4b5563; }
   #cronometro { text-align:center; font-size:3rem; font-weight:700; font-variant-numeric: tabular-nums; margin:6px 0; }
   .excedido { color:#dc2626; }
@@ -31,7 +39,7 @@
   #mensaje { margin-top:10px; font-weight:600; }
   .info { font-size:.85rem; color:#6b7280; margin:4px 0; }
   .error { color:#dc2626; font-size:.85rem; min-height:1.1em; }
-  /* Ventana para justificaciones */
+  .exito { color:#15803d; font-size:.85rem; }
   .modal { position:fixed; inset:0; background:#0007; display:flex; align-items:center; justify-content:center; padding:16px; z-index:10; }
   .modal-caja { background:#fff; border-radius:10px; padding:18px; width:100%; max-width:440px; }
 </style>
@@ -39,11 +47,45 @@
 <body>
 <h1>⏱ Registro de Horas de Operación</h1>
 
-<!-- PANTALLA 1: datos del técnico -->
-<div id="pantallaInicio" class="card">
-  <label>Nombre del técnico <input id="nombre" placeholder="Ej. Juan Pérez" maxlength="80"></label>
-  <label>Número (5 dígitos)
-    <input id="numero" inputmode="numeric" maxlength="5" placeholder="00000" autocomplete="off">
+<!-- ============ INICIO DE SESIÓN ============ -->
+<div id="pantallaLogin" class="card oculto">
+  <div class="pestanas">
+    <button id="tabTecnico" class="activa">Técnico</button>
+    <button id="tabGerente">Gerente</button>
+  </div>
+
+  <div id="pasoUsuario">
+    <label id="lblCampoUsuario">Tu nombre
+      <input id="loginNombre" list="listaTecnicos" placeholder="Empieza a escribir tu nombre..." autocomplete="off" maxlength="80">
+      <datalist id="listaTecnicos"></datalist>
+    </label>
+    <label id="lblCampoGerente" class="oculto">Usuario de gerente
+      <input id="loginUsuario" placeholder="Nombre_id" autocomplete="username" maxlength="60" autocapitalize="off">
+    </label>
+    <button class="btn-principal" id="btnPedirCodigo">Enviar código a mi correo</button>
+  </div>
+
+  <div id="pasoCodigo" class="oculto">
+    <p class="info" id="infoCodigo"></p>
+    <label>Código de 6 dígitos
+      <input id="loginCodigo" inputmode="numeric" maxlength="6" autocomplete="one-time-code" placeholder="000000">
+    </label>
+    <button class="btn-principal" id="btnEntrar">Entrar</button>
+    <button class="btn-link" id="btnOtroCodigo">Pedir otro código / cambiar usuario</button>
+  </div>
+  <div class="error" id="errorLogin"></div>
+</div>
+
+<!-- Barra con el usuario que inició sesión -->
+<div id="barraUsuario" class="barra-usuario oculto">
+  <span>👤 <b id="lblUsuario"></b> <span class="info" id="lblRol"></span></span>
+  <button class="btn-secundario" id="btnSalir">Cerrar sesión</button>
+</div>
+
+<!-- ============ TÉCNICO: inicio de jornada ============ -->
+<div id="pantallaInicio" class="card oculto">
+  <label>Llamada de servicio (5 dígitos)
+    <input id="llamada" inputmode="numeric" maxlength="5" placeholder="00000" autocomplete="off">
   </label>
   <div class="error" id="errorInicio"></div>
   <p class="info">Fecha: <span id="fechaHoy"></span></p>
@@ -51,10 +93,10 @@
   <button class="btn-principal" id="btnIniciar">Iniciar jornada</button>
 </div>
 
-<!-- PANTALLA 2: jornada en curso -->
+<!-- ============ TÉCNICO: jornada en curso ============ -->
 <div id="pantallaJornada" class="oculto">
   <div class="card">
-    <p class="info">Técnico: <b id="lblNombre"></b> · Número: <b id="lblNumero"></b> · Fecha: <b id="lblFecha"></b></p>
+    <p class="info">Llamada de servicio: <b id="lblLlamada"></b> · Fecha: <b id="lblFecha"></b></p>
     <div id="tramoActual">Listo para comenzar</div>
     <div id="cronometro">00:00:00</div>
     <button class="btn-principal" id="btnMarcar">Marcar</button>
@@ -83,30 +125,40 @@
   </div>
 </div>
 
-<!-- En vivo -->
-<div class="card">
-  <b>🟢 Técnicos en jornada hoy</b> <span class="info">(se actualiza cada minuto)</span>
+<!-- TÉCNICO: solo sus jornadas -->
+<div id="cardMisJornadas" class="card oculto">
+  <b>Mis últimas jornadas</b>
   <table>
-    <thead><tr><th>Técnico</th><th>Estado</th><th>Desde</th><th>📍</th></tr></thead>
-    <tbody id="tablaEnCurso"><tr><td colspan="4">Cargando...</td></tr></tbody>
+    <thead><tr><th>Fecha</th><th>Llamada</th><th>Estado</th><th>Operación</th></tr></thead>
+    <tbody id="tablaMisJornadas"></tbody>
   </table>
 </div>
 
-<!-- Historial -->
-<div class="card">
-  <b>Últimas jornadas registradas</b>
-  <table>
-    <thead><tr><th>Técnico</th><th>Número</th><th>Fecha</th><th>Estado</th><th>Operación</th></tr></thead>
-    <tbody id="tablaHistorial"><tr><td colspan="5">Cargando...</td></tr></tbody>
-  </table>
+<!-- ============ GERENTE: vista completa ============ -->
+<div id="pantallaGerente" class="oculto">
+  <div class="card">
+    <b>🟢 Técnicos en jornada hoy</b> <span class="info">(se actualiza cada minuto)</span>
+    <p><a href="mapa.html">🗺️ Abrir mapa en tiempo real</a></p>
+    <table>
+      <thead><tr><th>Técnico</th><th>Estado</th><th>Desde</th><th>📍</th><th>Alerta</th></tr></thead>
+      <tbody id="tablaEnCurso"></tbody>
+    </table>
+  </div>
+  <div class="card">
+    <b>Últimas jornadas (todos)</b>
+    <table>
+      <thead><tr><th>Técnico</th><th>Fecha</th><th>Llamada</th><th>Estado</th><th>Operación</th><th>Verificación</th></tr></thead>
+      <tbody id="tablaHistorial"></tbody>
+    </table>
+  </div>
 </div>
 
-<!-- Ventana para pedir justificación -->
+<!-- Ventana reutilizable para justificaciones y códigos -->
 <div id="modal" class="modal oculto">
   <div class="modal-caja">
     <b id="modalTitulo"></b>
     <textarea id="modalTexto" rows="3" maxlength="300" placeholder="Escribe la justificación..."></textarea>
-    <input id="modalPin" type="password" inputmode="numeric" maxlength="12" placeholder="🔒 PIN del gerente" autocomplete="off" class="oculto">
+    <input id="modalCampo" autocomplete="off" maxlength="60" class="oculto">
     <div class="error" id="modalError"></div>
     <div class="fila-botones">
       <button class="btn-secundario" id="modalCancelar">Cancelar</button>
@@ -120,8 +172,9 @@
 const URL_API = "https://script.google.com/macros/s/AKfycbyjQOBh_bHY-DS5z3v3d3hRBQ4NVNUW7kE6VM-u97vy_dl4AvQLu3Ry8hDNU--djwgOaQ/exec";
 const MINUTOS_ALMUERZO = 45;
 const CLAVE_LOCAL = "jornadaEnCurso";
+const CLAVE_SESION = "sesionRH";
+const RASTREO_TRASLADO_MS = 1 * 60 * 1000;   // cada 1 minuto, SOLO durante los traslados
 
-// "estado" = lo que se reporta en vivo cuando se marca ese paso
 const PASOS = [
   { id: "ida_1",    etiqueta: "Traslado ida_1",    detalle: "Salida del taller",        estado: "🚗 En ruta al sitio" },
   { id: "ida_2",    etiqueta: "Traslado ida_2",    detalle: "Llegada al sitio",         estado: "📍 Llegó al sitio" },
@@ -134,7 +187,6 @@ const PASOS = [
   { id: "vuelta_1", etiqueta: "Traslado vuelta_1", detalle: "Sale del sitio",           estado: "🚗 Regresando" },
   { id: "vuelta_2", etiqueta: "Traslado vuelta_2", detalle: "Llega a destino",          estado: "✅ Jornada terminada" }
 ];
-
 const TRAMOS = [
   { id: "dur_ida",    nombre: "Traslado de ida",    ini: "ida_1",    fin: "ida_2" },
   { id: "dur_ejec_a", nombre: "Ejecución (mañana)", ini: "ejec_1",   fin: "ejec_2" },
@@ -143,53 +195,197 @@ const TRAMOS = [
   { id: "dur_vuelta", nombre: "Traslado de vuelta", ini: "vuelta_1", fin: "vuelta_2" }
 ];
 
-/* Estado de la jornada:
-   { nombre, numero, fecha,
-     marcas: { ida_1: ms, ... },          hora de cada marca
-     ubic:   { ida_1: "link maps", ... }, ubicación de cada marca
-     pausas: [ { ini, fin, motivo, ubicIni, ubicFin } ],
-     cierre: null | { hora, motivo, ubic } } */
-let estado = null;
-let pendientes = [];      // ubicaciones que todavía se están obteniendo
+let sesion = null;        // { token, usuario, nombre, rol, empleado, exp }
+let estado = null;        // jornada en curso (ver iniciarJornada)
+let pendientes = [];
 let enviando = false;
+let tecnicosLista = [];
+let modoLogin = "tecnico";
+let usuarioLogin = "";
 
 // ======================= UTILIDADES =======================
 const $ = (id) => document.getElementById(id);
 const dos = (n) => String(n).padStart(2, "0");
+const mostrar = (id, si) => $(id).classList.toggle("oculto", !si);
 
-function hora24(ms) {
-  const d = new Date(ms);
-  return `${dos(d.getHours())}:${dos(d.getMinutes())}:${dos(d.getSeconds())}`;
-}
+function hora24(ms) { const d = new Date(ms); return `${dos(d.getHours())}:${dos(d.getMinutes())}:${dos(d.getSeconds())}`; }
 function duracion(ms) {
   const s = Math.max(0, Math.floor(ms / 1000));
   return `${dos(Math.floor(s / 3600))}:${dos(Math.floor(s % 3600 / 60))}:${dos(s % 60)}`;
 }
+function fechaHoy() { const d = new Date(); return `${d.getFullYear()}-${dos(d.getMonth() + 1)}-${dos(d.getDate())}`; }
 const nuevoId = () => Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
 
-function fechaHoy() {
-  const d = new Date();
-  return `${d.getFullYear()}-${dos(d.getMonth() + 1)}-${dos(d.getDate())}`;
+function leer(clave)         { try { return JSON.parse(localStorage.getItem(clave)); } catch (e) { return null; } }
+function escribir(clave, v)  { try { localStorage.setItem(clave, JSON.stringify(v)); } catch (e) {} }
+function borrar(clave)       { try { localStorage.removeItem(clave); } catch (e) {} }
+const guardarLocal = () => escribir(CLAVE_LOCAL, estado);
+
+function fila(valores, opciones = {}) {
+  const tr = document.createElement("tr");
+  valores.forEach((v, c) => {
+    const td = document.createElement("td");
+    if (opciones.ubic === c) celdaUbicacion(td, v); else td.textContent = v == null ? "" : v;
+    if (opciones.hora && opciones.hora.includes(c)) td.className = "hora";
+    tr.appendChild(td);
+  });
+  return tr;
+}
+function filaVacia(tbody, columnas, texto) {
+  tbody.innerHTML = "";
+  const tr = document.createElement("tr"), td = document.createElement("td");
+  td.colSpan = columnas; td.textContent = texto; tr.appendChild(td); tbody.appendChild(tr);
+}
+function celdaUbicacion(td, valor) {
+  if (valor && /^https:\/\/www\.google\.com\/maps\?q=-?[\d.]+,-?[\d.]+$/.test(valor)) {
+    const a = document.createElement("a");
+    a.href = valor; a.target = "_blank"; a.rel = "noopener noreferrer"; a.textContent = "ver";
+    td.appendChild(a);
+  } else td.textContent = valor || "";
 }
 
-function guardarLocal() { try { localStorage.setItem(CLAVE_LOCAL, JSON.stringify(estado)); } catch (e) {} }
-function leerLocal()    { try { return JSON.parse(localStorage.getItem(CLAVE_LOCAL)); } catch (e) { return null; } }
-function borrarLocal()  { try { localStorage.removeItem(CLAVE_LOCAL); } catch (e) {} }
+// ======================= COMUNICACIÓN CON GOOGLE =======================
+// Todas las solicitudes van por POST con el token de sesión (nunca en el link)
+async function api(accion, datos = {}) {
+  const resp = await fetch(URL_API, {
+    method: "POST",
+    headers: { "Content-Type": "text/plain;charset=utf-8" },
+    body: JSON.stringify(Object.assign({ accion, token: sesion && sesion.token }, datos))
+  });
+  const r = await resp.json();
+  if (r && r.error === "sesion") {
+    cerrarSesionLocal();
+    mostrarLogin("🔒 " + (r.mensaje || "Tu sesión venció.") + (estado ? " Tu jornada sigue guardada en este celular." : ""));
+    throw new Error("sesion");
+  }
+  return r;
+}
 
+// ======================= SESIÓN =======================
+function cerrarSesionLocal() { sesion = null; borrar(CLAVE_SESION); }
+
+async function salir() {
+  if (estado && !finalizada() && !confirm("Tienes una jornada en curso. Quedará guardada en este celular, pero no se podrá enviar hasta que vuelvas a entrar. ¿Cerrar sesión?")) return;
+  try { await api("cerrar_sesion"); } catch (e) {}
+  cerrarSesionLocal();
+  mostrarLogin("");
+}
+
+function cambiarModoLogin(modo) {
+  modoLogin = modo;
+  $("tabTecnico").classList.toggle("activa", modo === "tecnico");
+  $("tabGerente").classList.toggle("activa", modo === "gerente");
+  mostrar("lblCampoUsuario", modo === "tecnico");
+  mostrar("lblCampoGerente", modo === "gerente");
+  $("errorLogin").textContent = "";
+}
+
+async function cargarListaTecnicos() {
+  try {
+    const r = await api("lista_tecnicos");
+    tecnicosLista = r.tecnicos || [];
+    const dl = $("listaTecnicos");
+    dl.innerHTML = "";
+    tecnicosLista.forEach(t => { const o = document.createElement("option"); o.value = t.nombre; dl.appendChild(o); });
+  } catch (e) {}
+}
+
+async function pedirCodigo() {
+  $("errorLogin").textContent = "";
+  if (modoLogin === "tecnico") {
+    const nombre = $("loginNombre").value.trim().toLowerCase();
+    const t = tecnicosLista.find(x => x.nombre.toLowerCase() === nombre);
+    if (!t) { $("errorLogin").textContent = "Elige tu nombre de la lista."; return; }
+    usuarioLogin = t.usuario;
+  } else {
+    usuarioLogin = $("loginUsuario").value.trim();
+    if (!usuarioLogin) { $("errorLogin").textContent = "Escribe tu usuario."; return; }
+  }
+  $("btnPedirCodigo").disabled = true;
+  try {
+    const r = await api("pedir_codigo", { usuario: usuarioLogin });
+    if (!r.ok) { $("errorLogin").textContent = r.mensaje; return; }
+    $("infoCodigo").textContent = r.mensaje;
+    mostrar("pasoUsuario", false);
+    mostrar("pasoCodigo", true);
+    $("loginCodigo").value = "";
+    $("loginCodigo").focus();
+  } catch (e) {
+    $("errorLogin").textContent = "Sin conexión. Intenta de nuevo.";
+  } finally {
+    $("btnPedirCodigo").disabled = false;
+  }
+}
+
+async function entrar() {
+  const codigo = $("loginCodigo").value.trim();
+  if (!/^\d{6}$/.test(codigo)) { $("errorLogin").textContent = "El código tiene 6 dígitos."; return; }
+  $("btnEntrar").disabled = true;
+  try {
+    const r = await api("verificar_codigo", { usuario: usuarioLogin, codigo });
+    if (!r.ok) { $("errorLogin").textContent = r.mensaje; return; }
+    sesion = { token: r.token, usuario: r.usuario, nombre: r.nombre, rol: r.rol, empleado: r.empleado, exp: r.exp };
+    escribir(CLAVE_SESION, sesion);
+    $("errorLogin").textContent = "";
+    iniciarSegunRol();
+  } catch (e) {
+    $("errorLogin").textContent = "Sin conexión. Intenta de nuevo.";
+  } finally {
+    $("btnEntrar").disabled = false;
+  }
+}
+
+function mostrarLogin(mensaje) {
+  ["barraUsuario", "pantallaInicio", "pantallaJornada", "cardMisJornadas", "pantallaGerente"].forEach(id => mostrar(id, false));
+  mostrar("pantallaLogin", true);
+  mostrar("pasoUsuario", true);
+  mostrar("pasoCodigo", false);
+  $("errorLogin").textContent = mensaje || "";
+  cargarListaTecnicos();
+}
+
+function iniciarSegunRol() {
+  mostrar("pantallaLogin", false);
+  mostrar("barraUsuario", true);
+  $("lblUsuario").textContent = sesion.nombre;
+  $("lblRol").textContent = `(${sesion.rol === "gerente" ? "Gerente" : "Técnico"} ${sesion.empleado || ""})`;
+
+  if (sesion.rol === "gerente") {
+    mostrar("pantallaGerente", true);
+    cargarPanelGerente();
+    return;
+  }
+  // Técnico
+  mostrar("cardMisJornadas", true);
+  cargarMisJornadas();
+  if (estado && estado.usuario && estado.usuario !== sesion.usuario) {
+    mostrar("pantallaInicio", true);
+    $("errorInicio").textContent = `Este celular tiene una jornada pendiente de otra persona (${estado.nombre}). ` +
+      `Debe entrar esa persona para terminarla y enviarla.`;
+    $("btnIniciar").disabled = true;
+    return;
+  }
+  $("btnIniciar").disabled = false;
+  if (estado) {
+    estado.usuario = estado.usuario || sesion.usuario;
+    estado.nombre = estado.nombre || sesion.nombre;
+    mostrarJornada();
+    if (finalizada()) enviar();
+  } else {
+    mostrar("pantallaInicio", true);
+  }
+}
+
+// ======================= ESTADO DE LA JORNADA =======================
 const pasoActual  = () => Object.keys(estado.marcas).length;
 const tramoDe     = (idPaso) => TRAMOS.find(t => t.ini === idPaso || t.fin === idPaso);
 const ultimaPausa = () => estado.pausas[estado.pausas.length - 1];
 const enPausa     = () => !!(ultimaPausa() && !ultimaPausa().fin);
 const finalizada  = () => pasoActual() === PASOS.length || !!estado.cierre;
 
-// Tiempo en pausa que cae dentro del intervalo [a, b]
 function pausaEntre(a, b) {
-  return estado.pausas.reduce((suma, p) => {
-    const finP = p.fin || Date.now();
-    return suma + Math.max(0, Math.min(b, finP) - Math.max(a, p.ini));
-  }, 0);
+  return estado.pausas.reduce((suma, p) => suma + Math.max(0, Math.min(b, p.fin || Date.now()) - Math.max(a, p.ini)), 0);
 }
-// Duración real de un intervalo, descontando las pausas
 const neto = (a, b) => (b - a) - pausaEntre(a, b);
 
 // ======================= UBICACIÓN =======================
@@ -203,7 +399,6 @@ function obtenerUbicacion() {
     );
   });
 }
-// Pide la ubicación sin bloquear la marca; cuando llega, la guarda con "guardar(valor)"
 function registrarUbicacion(guardar) {
   const promesa = obtenerUbicacion().then(valor => { guardar(valor); guardarLocal(); dibujar(); return valor; });
   pendientes.push(promesa);
@@ -217,37 +412,29 @@ function textoEstadoActual() {
   const i = pasoActual();
   return i === 0 ? "Sin iniciar" : PASOS[i - 1].estado;
 }
-// Envía el estado actual del técnico (no bloquea; si no hay internet, se ignora)
-async function reportarEstado(accion, promesaUbicacion) {
+async function reportarEstado(accion, promesaUbicacion, tipoEvento) {
   const ubic = await promesaUbicacion;
   const datos = {
-    tipo: "estado", id: estado.id, nombre: estado.nombre, numero: estado.numero, fecha: estado.fecha,
-    estado: textoEstadoActual(), ultima_accion: accion, evento: accion, hora: hora24(Date.now()),
+    id: estado.id, llamada_servicio: estado.llamada, fecha: estado.fecha,
+    estado: textoEstadoActual(), ultima_accion: accion, evento: accion, tipo_evento: tipoEvento || "otro",
+    hora: hora24(Date.now()), ts: Date.now(),
     ubic: (ubic && ubic.startsWith("https://")) ? ubic : (ubic || "no disponible")
   };
-  // Coordenadas para el mapa (se sacan del link de Maps)
   const c = /q=(-?[\d.]+),(-?[\d.]+)/.exec(datos.ubic);
   if (c) { datos.lat = c[1]; datos.lng = c[2]; }
-  try {
-    await fetch(URL_API, { method: "POST", headers: { "Content-Type": "text/plain;charset=utf-8" }, body: JSON.stringify(datos) });
-    cargarEnCurso();
-  } catch (e) { /* sin conexión: la jornada completa se envía igual al final */ }
+  try { await api("estado", datos); } catch (e) { /* sin conexión: la jornada completa se envía igual al final */ }
 }
 
-// ======================= RASTREO DURANTE EL RECORRIDO =======================
-const RASTREO_TRASLADO_MS = 1 * 60 * 1000;   // cada 1 minuto, SOLO durante los traslados (ida y vuelta)
+// ======================= RASTREO (solo traslados) =======================
 let ultimoRastreo = 0, rastreando = false, wakeLock = null;
-
-const jornadaActiva = () => !!estado && pasoActual() > 0 && !finalizada();
+const jornadaActiva = () => !!estado && !!sesion && pasoActual() > 0 && !finalizada();
 function enTraslado() {
   if (!jornadaActiva() || enPausa()) return false;
   const ultimo = PASOS[pasoActual() - 1].id;
   return ultimo === "ida_1" || ultimo === "vuelta_1";
 }
-
-// Envía un punto de ubicación si ya pasó el intervalo (forzar = enviar ya)
 async function rastrear(forzar) {
-  if (!enTraslado() || rastreando) return;             // fuera de traslado no se rastrea
+  if (!enTraslado() || rastreando) return;
   if (!forzar && Date.now() - ultimoRastreo < RASTREO_TRASLADO_MS) return;
   rastreando = true;
   ultimoRastreo = Date.now();
@@ -258,103 +445,91 @@ async function rastrear(forzar) {
   });
   if (pos && enTraslado()) {
     try {
-      await fetch(URL_API, {
-        method: "POST", headers: { "Content-Type": "text/plain;charset=utf-8" },
-        body: JSON.stringify({
-          tipo: "ubicacion", id: estado.id, nombre: estado.nombre, numero: estado.numero, fecha: estado.fecha,
-          estado: textoEstadoActual(), evento: "Rastreo", hora: hora24(Date.now()),
-          lat: pos.latitude.toFixed(6), lng: pos.longitude.toFixed(6), precision: Math.round(pos.accuracy)
-        })
+      await api("ubicacion", {
+        id: estado.id, llamada_servicio: estado.llamada, fecha: estado.fecha,
+        estado: textoEstadoActual(), evento: "Rastreo", hora: hora24(Date.now()), ts: Date.now(),
+        lat: pos.latitude.toFixed(6), lng: pos.longitude.toFixed(6), precision: Math.round(pos.accuracy)
       });
-    } catch (e) { /* sin señal: se intenta en el siguiente intervalo */ }
+    } catch (e) {}
   }
   rastreando = false;
   dibujarInfoRastreo(pos);
 }
-
-// Mantiene la pantalla encendida durante los traslados (si el celular lo permite)
 async function actualizarWakeLock() {
   const debe = enTraslado() && document.visibilityState === "visible";
   try {
     if (debe && !wakeLock && "wakeLock" in navigator) {
       wakeLock = await navigator.wakeLock.request("screen");
       wakeLock.addEventListener("release", () => { wakeLock = null; });
-    } else if (!debe && wakeLock) {
-      await wakeLock.release();
-      wakeLock = null;
-    }
-  } catch (e) { /* el navegador no lo permite */ }
+    } else if (!debe && wakeLock) { await wakeLock.release(); wakeLock = null; }
+  } catch (e) {}
 }
-
 function dibujarInfoRastreo(pos) {
   const info = $("infoRastreo");
-  if (!info) return;
   if (!enTraslado()) { info.textContent = ""; return; }
   const pantalla = wakeLock ? " · 🔆 pantalla encendida" : " · ⚠️ no bloquees el celular";
   const ultimo = ultimoRastreo ? ` · último envío ${hora24(ultimoRastreo)}` : "";
-  const sinGps = pos === null ? " · ⚠️ sin GPS" : "";
-  info.textContent = `📡 Rastreo de traslado activo (cada 1 min)${ultimo}${pantalla}${sinGps}`;
+  info.textContent = `📡 Rastreo de traslado activo (cada 1 min)${ultimo}${pantalla}${pos === null ? " · ⚠️ sin GPS" : ""}`;
 }
 
-// ======================= VENTANA DE JUSTIFICACIÓN =======================
-// conPin = true → también pide el PIN del gerente y devuelve { texto, pin }
-function pedirJustificacion(titulo, conPin = false) {
+// ======================= VENTANA MODAL =======================
+// opciones: { titulo, texto: true/false, campo: { placeholder, numerico } }
+function pedirDatos(op) {
   return new Promise(resolver => {
-    $("modalTitulo").textContent = titulo;
-    $("modalTexto").value = "";
-    $("modalPin").value = "";
-    $("modalPin").classList.toggle("oculto", !conPin);
+    $("modalTitulo").textContent = op.titulo;
+    $("modalTexto").value = ""; mostrar("modalTexto", !!op.texto);
+    $("modalCampo").value = ""; mostrar("modalCampo", !!op.campo);
+    if (op.campo) {
+      $("modalCampo").placeholder = op.campo.placeholder || "";
+      $("modalCampo").inputMode = op.campo.numerico ? "numeric" : "text";
+    }
     $("modalError").textContent = "";
-    $("modal").classList.remove("oculto");
-    $("modalTexto").focus();
+    mostrar("modal", true);
+    (op.texto ? $("modalTexto") : $("modalCampo")).focus();
     $("modalOk").onclick = () => {
-      const texto = $("modalTexto").value.trim();
-      const pin = $("modalPin").value.trim();
-      if (texto.length < 5) { $("modalError").textContent = "Escribe una justificación (mínimo 5 caracteres)."; return; }
-      if (conPin && !pin) { $("modalError").textContent = "El gerente debe escribir su PIN."; return; }
-      $("modal").classList.add("oculto");
-      if (conPin) return resolver({ texto, pin });
-      resolver(texto);
+      const texto = $("modalTexto").value.trim(), campo = $("modalCampo").value.trim();
+      if (op.texto && texto.length < 5) { $("modalError").textContent = "Escribe una justificación (mínimo 5 caracteres)."; return; }
+      if (op.campo && !campo) { $("modalError").textContent = "Completa el campo."; return; }
+      mostrar("modal", false);
+      resolver({ texto, campo });
     };
-    $("modalCancelar").onclick = () => { $("modal").classList.add("oculto"); resolver(null); };
+    $("modalCancelar").onclick = () => { mostrar("modal", false); resolver(null); };
   });
 }
 
-// ======================= ACCIONES =======================
+// ======================= ACCIONES DEL TÉCNICO =======================
 function iniciarJornada() {
-  const nombre = $("nombre").value.trim();
-  const numero = $("numero").value.trim();
-  if (!nombre) { $("errorInicio").textContent = "Escribe el nombre."; $("nombre").focus(); return; }
-  if (!/^\d{5}$/.test(numero)) { $("errorInicio").textContent = "El número debe tener exactamente 5 dígitos."; $("numero").focus(); return; }
-  estado = { id: nuevoId(), nombre, numero, fecha: fechaHoy(), marcas: {}, ubic: {}, pausas: [], cierre: null };
+  const llamada = $("llamada").value.trim();
+  if (!/^\d{5}$/.test(llamada)) { $("errorInicio").textContent = "La llamada de servicio debe tener exactamente 5 dígitos."; $("llamada").focus(); return; }
+  estado = { id: nuevoId(), usuario: sesion.usuario, nombre: sesion.nombre, llamada, fecha: fechaHoy(),
+             marcas: {}, ubic: {}, pausas: [], cierre: null };
   guardarLocal();
-  obtenerUbicacion();   // solo para que el navegador pida el permiso desde el inicio
+  obtenerUbicacion();   // para que el navegador pida el permiso desde el inicio
   mostrarJornada();
 }
 
 function marcar() {
   if (finalizada() || enPausa()) return;
   const id = PASOS[pasoActual()].id;
-  estado.marcas[id] = Date.now();          // la hora se toma al instante del toque
+  estado.marcas[id] = Date.now();
   estado.ubic[id] = "obteniendo...";
   guardarLocal();
   dibujar();
-  const etiqueta = PASOS[pasoActual() - 1].etiqueta;
-  reportarEstado(etiqueta, registrarUbicacion(v => { if (estado.marcas[id]) estado.ubic[id] = v; }));
+  reportarEstado(PASOS[pasoActual() - 1].etiqueta, registrarUbicacion(v => { if (estado.marcas[id]) estado.ubic[id] = v; }), "marca");
   if (pasoActual() === PASOS.length) enviar();
 }
 
 async function alternarPausa() {
   if (finalizada()) return;
-  if (enPausa()) {                                   // REANUDAR
+  if (enPausa()) {
     const p = ultimaPausa();
     p.fin = Date.now();
     p.ubicFin = "obteniendo...";
     reportarEstado("Reanudó", registrarUbicacion(v => p.ubicFin = v));
-  } else {                                           // PAUSAR
-    const motivo = await pedirJustificacion("¿Por qué se pausa?");
-    if (!motivo) return;
-    const p = { ini: Date.now(), fin: null, motivo, ubicIni: "obteniendo...", ubicFin: "" };
+  } else {
+    const r = await pedirDatos({ titulo: "¿Por qué se pausa?", texto: true });
+    if (!r) return;
+    const p = { ini: Date.now(), fin: null, motivo: r.texto, ubicIni: "obteniendo...", ubicFin: "" };
     estado.pausas.push(p);
     reportarEstado("Pausa", registrarUbicacion(v => p.ubicIni = v));
   }
@@ -364,50 +539,38 @@ async function alternarPausa() {
 
 async function cerrarMarcaje() {
   if (finalizada()) return;
-  const motivo = await pedirJustificacion("Motivo para cerrar el marcaje (los horarios que falten quedarán vacíos)");
-  if (!motivo) return;
+  const r = await pedirDatos({ titulo: "Motivo para cerrar el marcaje (los horarios que falten quedarán vacíos)", texto: true });
+  if (!r) return;
   const ahora = Date.now();
   if (enPausa()) ultimaPausa().fin = ahora;
-  estado.cierre = { hora: ahora, motivo, ubic: "obteniendo..." };
-  reportarEstado("Cerró marcaje: " + motivo, registrarUbicacion(v => estado.cierre.ubic = v));
+  estado.cierre = { hora: ahora, motivo: r.texto, ubic: "obteniendo..." };
+  reportarEstado("Cerró marcaje: " + r.texto, registrarUbicacion(v => estado.cierre.ubic = v), "cierre");
   guardarLocal();
   dibujar();
   enviar();
 }
 
-// Borrar una marca SOLO con autorización del gerente (el PIN se valida en Google, no aquí)
+// Borrar una marca: el gerente recibe un código en su correo y se lo da al técnico
 async function deshacer() {
   const i = pasoActual();
   if (i === 0 || enPausa() || finalizada()) return;
   const paso = PASOS[i - 1];
-  const r = await pedirJustificacion(`🔒 Borrar la marca "${paso.etiqueta}" requiere autorización del gerente. Motivo:`, true);
+  const r = await pedirDatos({ titulo: `🔒 Borrar "${paso.etiqueta}" requiere autorización de un gerente. Escribe el motivo y el usuario del gerente:`,
+                               texto: true, campo: { placeholder: "Usuario del gerente (Nombre_id)" } });
   if (!r) return;
-
-  $("mensaje").textContent = "Verificando autorización...";
-  $("btnDeshacer").disabled = true;
-  let respuesta;
+  $("mensaje").textContent = "Enviando solicitud al gerente...";
   try {
-    const resp = await fetch(URL_API, {
-      method: "POST",
-      headers: { "Content-Type": "text/plain;charset=utf-8" },
-      body: JSON.stringify({
-        tipo: "autorizar", pin: r.pin, motivo: r.texto,
-        id: estado.id, nombre: estado.nombre, numero: estado.numero, fecha: estado.fecha,
-        marca: paso.etiqueta, hora_marca: hora24(estado.marcas[paso.id])
-      })
-    });
-    respuesta = await resp.json();
+    const s = await api("solicitar_borrado", { gerente: r.campo, motivo: r.texto, id: estado.id, fecha: estado.fecha,
+                                              marca: paso.etiqueta, hora_marca: hora24(estado.marcas[paso.id]) });
+    if (!s.ok) { $("mensaje").textContent = "❌ " + s.mensaje; return; }
+    const c = await pedirDatos({ titulo: s.mensaje + " Pídele el código y escríbelo aquí:", campo: { placeholder: "Código de 6 dígitos", numerico: true } });
+    if (!c) { $("mensaje").textContent = "Borrado cancelado."; return; }
+    const v = await api("confirmar_borrado", { solicitud: s.solicitud, codigo: c.campo });
+    if (!v.ok) { $("mensaje").textContent = "❌ " + v.mensaje; return; }
   } catch (e) {
-    $("mensaje").textContent = "❌ Se necesita internet para autorizar el borrado.";
-    dibujar();
+    if (e.message !== "sesion") $("mensaje").textContent = "❌ Se necesita internet para autorizar el borrado.";
     return;
   }
-  if (!respuesta.ok) {
-    $("mensaje").textContent = "❌ " + (respuesta.error || "No autorizado");
-    dibujar();
-    return;
-  }
-
   delete estado.marcas[paso.id];
   delete estado.ubic[paso.id];
   guardarLocal();
@@ -416,34 +579,28 @@ async function deshacer() {
   reportarEstado("Borró marca (autorizado): " + paso.etiqueta, Promise.resolve("no disponible"));
 }
 
-// ======================= ENVÍO A GOOGLE SHEETS =======================
+// ======================= ENVÍO DE LA JORNADA =======================
 function armarRegistro() {
   const m = estado.marcas;
   const limpiarUbic = (u) => (!u || u === "obteniendo...") ? "no disponible" : u;
   const finJornada = m.vuelta_2 || (estado.cierre && estado.cierre.hora);
-
-  const r = {
-    estado: estado.cierre ? "Cerrada anticipada" : "Completa",
-    nombre: estado.nombre, numero: estado.numero, fecha: estado.fecha
-  };
+  const r = { id: estado.id, estado: estado.cierre ? "Cerrada anticipada" : "Completa",
+              llamada_servicio: estado.llamada, fecha: estado.fecha };
   PASOS.forEach(p => {
     r[p.id] = m[p.id] ? hora24(m[p.id]) : "";
     r[p.id + "_ubic"] = m[p.id] ? limpiarUbic(estado.ubic[p.id]) : "";
   });
-
   const durMs = {};
   TRAMOS.forEach(t => {
-    const fin = m[t.fin] || (estado.cierre ? estado.cierre.hora : null);   // tramo abierto al cerrar → hasta el cierre
+    const fin = m[t.fin] || (estado.cierre ? estado.cierre.hora : null);
     durMs[t.id] = (m[t.ini] && fin) ? neto(m[t.ini], fin) : null;
     r[t.id] = durMs[t.id] === null ? "" : duracion(durMs[t.id]);
   });
-
   r.total_operacion = duracion((durMs.dur_ejec_a || 0) + (durMs.dur_ejec_b || 0));
   r.total_pausas = duracion(estado.pausas.reduce((s, p) => s + ((p.fin || p.ini) - p.ini), 0));
   r.total_jornada = (m.ida_1 && finJornada) ? duracion(finJornada - m.ida_1) : "";
   r.pausas = estado.pausas.map(p =>
-    `${hora24(p.ini)}-${p.fin ? hora24(p.fin) : "?"} (${duracion((p.fin || p.ini) - p.ini)}) ${p.motivo} [${limpiarUbic(p.ubicIni)}]`
-  ).join(" ; ");
+    `${hora24(p.ini)}-${p.fin ? hora24(p.fin) : "?"} (${duracion((p.fin || p.ini) - p.ini)}) ${p.motivo} [${limpiarUbic(p.ubicIni)}]`).join(" ; ");
   r.motivo_cierre = estado.cierre ? estado.cierre.motivo : "";
   r.hora_cierre   = estado.cierre ? hora24(estado.cierre.hora) : "";
   r.ubic_cierre   = estado.cierre ? limpiarUbic(estado.cierre.ubic) : "";
@@ -451,62 +608,45 @@ function armarRegistro() {
 }
 
 async function enviar() {
-  if (enviando) return;
+  if (enviando || !sesion) return;
   enviando = true;
   const btn = $("btnMarcar");
   btn.disabled = true;
   $("mensaje").textContent = "Obteniendo ubicación y enviando...";
-  await Promise.all(pendientes);       // espera las ubicaciones que falten
+  await Promise.all(pendientes);
   const registro = armarRegistro();
   try {
-    const resp = await fetch(URL_API, {
-      method: "POST",
-      headers: { "Content-Type": "text/plain;charset=utf-8" },
-      body: JSON.stringify(registro)
-    });
-    if (!resp.ok) throw new Error("HTTP " + resp.status);
-    borrarLocal();
+    const r = await api("jornada", registro);
+    if (!r.ok) throw new Error(r.mensaje || "rechazado");
+    borrar(CLAVE_LOCAL);
     $("mensaje").textContent = `✅ Jornada guardada (${registro.estado}). Operación: ${registro.total_operacion}`;
     btn.textContent = "Nueva jornada";
     btn.onclick = () => location.reload();
-    cargarHistorial();
+    cargarMisJornadas();
   } catch (err) {
-    $("mensaje").textContent = "❌ No se pudo enviar (¿sin internet?). Los datos siguen guardados en este equipo.";
-    btn.textContent = "Reintentar envío";
-    btn.onclick = enviar;
+    if (err.message !== "sesion") {
+      $("mensaje").textContent = "❌ No se pudo enviar (" + (err.message === "Failed to fetch" ? "sin internet" : err.message) + "). Los datos siguen guardados en este celular.";
+      btn.textContent = "Reintentar envío";
+      btn.onclick = enviar;
+    }
   }
   btn.disabled = false;
   enviando = false;
 }
 
-// ======================= PANTALLA =======================
+// ======================= PANTALLA DEL TÉCNICO =======================
 function mostrarJornada() {
-  $("pantallaInicio").classList.add("oculto");
-  $("pantallaJornada").classList.remove("oculto");
-  $("lblNombre").textContent = estado.nombre;
-  $("lblNumero").textContent = estado.numero;
+  mostrar("pantallaInicio", false);
+  mostrar("pantallaJornada", true);
+  $("lblLlamada").textContent = estado.llamada;
   $("lblFecha").textContent = estado.fecha;
   dibujar();
 }
 
-function celdaUbicacion(td, valor) {
-  if (valor && valor.startsWith("https://")) {
-    const a = document.createElement("a");
-    a.href = valor; a.target = "_blank"; a.rel = "noopener"; a.textContent = "ver";
-    td.appendChild(a);
-  } else {
-    td.textContent = valor || "";
-  }
-}
-
 function dibujar() {
-  if (!estado) return;
-  const i = pasoActual();
-  const m = estado.marcas;
-  const fin = finalizada();
-  const pausa = enPausa();
+  if (!estado || $("pantallaJornada").classList.contains("oculto")) return;
+  const i = pasoActual(), m = estado.marcas, fin = finalizada(), pausa = enPausa();
 
-  // Botones
   if (!fin) {
     $("btnMarcar").textContent = pausa ? "En pausa..." : `Marcar: ${PASOS[i].etiqueta}`;
     $("btnMarcar").onclick = marcar;
@@ -515,44 +655,25 @@ function dibujar() {
   $("btnPausa").textContent = pausa ? "▶ Reanudar" : "⏸ Pausa";
   $("btnPausa").classList.toggle("reanudar", pausa);
   $("btnPausa").parentElement.classList.toggle("oculto", fin);
-  $("btnDeshacer").classList.toggle("oculto", fin);
+  mostrar("btnDeshacer", !fin);
   $("btnDeshacer").disabled = pausa || i === 0;
 
-  // Tabla de marcas
   const tbody = $("tablaMarcas");
   tbody.innerHTML = "";
   PASOS.forEach((p, idx) => {
-    const tr = document.createElement("tr");
-    if (idx === i && !fin) tr.className = "siguiente";
     const t = tramoDe(p.id);
     const dur = (t.fin === p.id && m[t.fin]) ? duracion(neto(m[t.ini], m[t.fin])) : "";
-    const celdas = [`${p.etiqueta} — ${p.detalle}`, m[p.id] ? hora24(m[p.id]) : "--:--:--", dur];
-    celdas.forEach((v, c) => {
-      const td = document.createElement("td");
-      td.textContent = v;
-      if (c === 1) td.className = "hora";
-      tr.appendChild(td);
-    });
-    const tdU = document.createElement("td");
-    celdaUbicacion(tdU, m[p.id] ? estado.ubic[p.id] : "");
-    tr.appendChild(tdU);
+    const tr = fila([`${p.etiqueta} — ${p.detalle}`, m[p.id] ? hora24(m[p.id]) : "--:--:--", dur, m[p.id] ? estado.ubic[p.id] : ""],
+                    { hora: [1], ubic: 3 });
+    if (idx === i && !fin) tr.className = "siguiente";
     tbody.appendChild(tr);
   });
 
-  // Tabla de pausas
-  $("cardPausas").classList.toggle("oculto", estado.pausas.length === 0);
+  mostrar("cardPausas", estado.pausas.length > 0);
   const tp = $("tablaPausas");
   tp.innerHTML = "";
-  estado.pausas.forEach(p => {
-    const tr = document.createElement("tr");
-    [hora24(p.ini), p.fin ? hora24(p.fin) : "en curso", p.fin ? duracion(p.fin - p.ini) : "", p.motivo].forEach((v, c) => {
-      const td = document.createElement("td");
-      td.textContent = v;
-      if (c < 2) td.className = "hora";
-      tr.appendChild(td);
-    });
-    tp.appendChild(tr);
-  });
+  estado.pausas.forEach(p => tp.appendChild(fila(
+    [hora24(p.ini), p.fin ? hora24(p.fin) : "en curso", p.fin ? duracion(p.fin - p.ini) : "", p.motivo], { hora: [0, 1] })));
 
   actualizarCronometro();
   actualizarWakeLock();
@@ -560,22 +681,12 @@ function dibujar() {
 }
 
 function actualizarCronometro() {
-  if (!estado) return;
-  const crono = $("cronometro");
-  const etiqueta = $("tramoActual");
+  if (!estado || $("pantallaJornada").classList.contains("oculto")) return;
+  const crono = $("cronometro"), etiqueta = $("tramoActual");
   crono.classList.remove("excedido", "pausado");
-
-  if (estado.cierre) {
-    etiqueta.textContent = "Marcaje cerrado: " + estado.cierre.motivo;
-    crono.textContent = hora24(estado.cierre.hora);
-    return;
-  }
+  if (estado.cierre) { etiqueta.textContent = "Marcaje cerrado: " + estado.cierre.motivo; crono.textContent = hora24(estado.cierre.hora); return; }
   const i = pasoActual();
-  if (i >= PASOS.length) {
-    etiqueta.textContent = "Jornada completa";
-    crono.textContent = duracion(estado.marcas.vuelta_2 - estado.marcas.ida_1);
-    return;
-  }
+  if (i >= PASOS.length) { etiqueta.textContent = "Jornada completa"; crono.textContent = duracion(estado.marcas.vuelta_2 - estado.marcas.ida_1); return; }
   if (enPausa()) {
     const p = ultimaPausa();
     etiqueta.textContent = "⏸ En pausa: " + p.motivo;
@@ -583,100 +694,80 @@ function actualizarCronometro() {
     crono.classList.add("pausado");
     return;
   }
-
   const t = tramoDe(PASOS[i].id);
-  if (t.fin !== PASOS[i].id) {                      // entre tramos: no hay cronómetro corriendo
-    etiqueta.textContent = `Siguiente: ${t.nombre}`;
-    crono.textContent = "00:00:00";
-    return;
-  }
-
+  if (t.fin !== PASOS[i].id) { etiqueta.textContent = `Siguiente: ${t.nombre}`; crono.textContent = "00:00:00"; return; }
   const transcurrido = neto(estado.marcas[t.ini], Date.now());
   if (t.cuentaRegresiva) {
     const restante = MINUTOS_ALMUERZO * 60000 - transcurrido;
-    if (restante >= 0) {
-      etiqueta.textContent = `${t.nombre} — tiempo restante`;
-      crono.textContent = duracion(restante);
-    } else {
-      etiqueta.textContent = `${t.nombre} — ¡tiempo excedido!`;
-      crono.textContent = "+" + duracion(-restante);
-      crono.classList.add("excedido");
-    }
+    if (restante >= 0) { etiqueta.textContent = `${t.nombre} — tiempo restante`; crono.textContent = duracion(restante); }
+    else { etiqueta.textContent = `${t.nombre} — ¡tiempo excedido!`; crono.textContent = "+" + duracion(-restante); crono.classList.add("excedido"); }
   } else {
     etiqueta.textContent = `${t.nombre} en curso`;
     crono.textContent = duracion(transcurrido);
   }
 }
 
-async function cargarHistorial() {
-  const tbody = $("tablaHistorial");
+async function cargarMisJornadas() {
+  const tbody = $("tablaMisJornadas");
   try {
-    const datos = await (await fetch(URL_API)).json();
-    tbody.innerHTML = datos.length ? "" : '<tr><td colspan="5">Sin registros</td></tr>';
-    datos.slice(-10).reverse().forEach(r => {
-      const tr = document.createElement("tr");
-      [r.nombre, r.numero, r.fecha, r.estado, r.total_operacion].forEach(v => {
-        const td = document.createElement("td"); td.textContent = v || ""; tr.appendChild(td);
-      });
-      tbody.appendChild(tr);
-    });
-  } catch (e) {
-    tbody.innerHTML = '<tr><td colspan="5">No se pudo cargar el historial</td></tr>';
-  }
+    const r = await api("mis_datos");
+    if (!r.ok) return;
+    if (!r.jornadas.length) return filaVacia(tbody, 4, "Aún no tienes jornadas registradas");
+    tbody.innerHTML = "";
+    r.jornadas.slice().reverse().forEach(j => tbody.appendChild(fila([j.fecha, j.llamada_servicio, j.estado, j.total_operacion])));
+  } catch (e) { if (e.message !== "sesion") filaVacia(tbody, 4, "No se pudo cargar"); }
 }
 
-// Panel "Técnicos en jornada hoy"
-async function cargarEnCurso() {
-  const tbody = $("tablaEnCurso");
+// ======================= PANTALLA DEL GERENTE =======================
+async function cargarPanelGerente() {
+  if (!sesion || sesion.rol !== "gerente") return;
   try {
-    const datos = (await (await fetch(URL_API + "?vista=encurso")).json())
-      .filter(r => r.fecha === fechaHoy());
-    tbody.innerHTML = datos.length ? "" : '<tr><td colspan="4">Nadie ha iniciado jornada hoy</td></tr>';
-    datos.reverse().forEach(r => {
-      const tr = document.createElement("tr");
-      [r.nombre, r.estado, r.hora].forEach((v, c) => {
-        const td = document.createElement("td"); td.textContent = v || "";
-        if (c === 2) td.className = "hora";
-        tr.appendChild(td);
-      });
-      const tdU = document.createElement("td");
-      celdaUbicacion(tdU, r.ubic);
-      tr.appendChild(tdU);
-      tbody.appendChild(tr);
-    });
-  } catch (e) {
-    tbody.innerHTML = '<tr><td colspan="4">No se pudo cargar</td></tr>';
-  }
+    const r = await api("panel");
+    if (!r.ok) return;
+    const tc = $("tablaEnCurso");
+    if (!r.encurso.length) filaVacia(tc, 5, "Nadie ha iniciado jornada hoy");
+    else { tc.innerHTML = ""; r.encurso.slice().reverse().forEach(x => tc.appendChild(fila([x.nombre, x.estado, x.hora, x.ubic, x.alerta], { hora: [2], ubic: 3 }))); }
+    const th = $("tablaHistorial");
+    if (!r.jornadas.length) filaVacia(th, 6, "Sin registros");
+    else { th.innerHTML = ""; r.jornadas.slice().reverse().forEach(j => th.appendChild(fila([j.nombre, j.fecha, j.llamada_servicio, j.estado, j.total_operacion, j.alerta_hora]))); }
+  } catch (e) {}
 }
 
 // ======================= ARRANQUE =======================
 $("fechaHoy").textContent = fechaHoy();
-$("numero").addEventListener("input", e => e.target.value = e.target.value.replace(/\D/g, "").slice(0, 5));
+$("llamada").addEventListener("input", e => e.target.value = e.target.value.replace(/\D/g, "").slice(0, 5));
+$("loginCodigo").addEventListener("input", e => e.target.value = e.target.value.replace(/\D/g, "").slice(0, 6));
+$("loginCodigo").addEventListener("keydown", e => { if (e.key === "Enter") entrar(); });
+$("tabTecnico").onclick = () => cambiarModoLogin("tecnico");
+$("tabGerente").onclick = () => cambiarModoLogin("gerente");
+$("btnPedirCodigo").onclick = pedirCodigo;
+$("btnEntrar").onclick = entrar;
+$("btnOtroCodigo").onclick = () => { mostrar("pasoCodigo", false); mostrar("pasoUsuario", true); $("errorLogin").textContent = ""; };
+$("btnSalir").onclick = salir;
 $("btnIniciar").onclick = iniciarJornada;
 $("btnPausa").onclick = alternarPausa;
 $("btnCerrar").onclick = cerrarMarcaje;
 $("btnDeshacer").onclick = deshacer;
 
-estado = leerLocal();
-if (estado) {
-  // compatibilidad con jornadas guardadas por la versión anterior
+estado = leer(CLAVE_LOCAL);
+if (estado) {   // compatibilidad con jornadas guardadas por versiones anteriores
   estado.ubic = estado.ubic || {};
   estado.pausas = estado.pausas || [];
-  estado.numero = estado.numero || "";
   estado.cierre = estado.cierre || null;
   estado.id = estado.id || nuevoId();
-  mostrarJornada();
-  if (finalizada()) enviar();     // si quedó pendiente de enviar, reintenta
+  estado.llamada = estado.llamada || estado.numero || "";
 }
+sesion = leer(CLAVE_SESION);
+if (sesion && (!sesion.token || sesion.exp < Date.now())) { cerrarSesionLocal(); }
+if (sesion) iniciarSegunRol(); else mostrarLogin("");
+
 setInterval(actualizarCronometro, 1000);
-setInterval(cargarEnCurso, 60000);   // refresca el panel en vivo cada minuto
-setInterval(() => rastrear(false), 15000);   // revisa cada 15 s si toca enviar ubicación
+setInterval(() => rastrear(false), 15000);
+setInterval(cargarPanelGerente, 60000);
 document.addEventListener("visibilitychange", () => {
-  if (document.visibilityState === "visible") rastrear(true);   // al volver a la página, envía de inmediato
+  if (document.visibilityState === "visible") rastrear(true);
   actualizarWakeLock();
 });
-cargarHistorial();
-cargarEnCurso();
 </script>
 </body>
 </html>
