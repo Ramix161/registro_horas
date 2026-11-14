@@ -1,10 +1,13 @@
 <!DOCTYPE html>
+<!-- Registro de Horas · index.html · v10 · 2026-11-14 -->
 <html lang="es">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <meta name="referrer" content="no-referrer">
 <title>Registro de Horas - Técnicos</title>
+<script src="https://unpkg.com/qrcode-generator@1.4.4/qrcode.js"
+        integrity="sha384-8FWZA6BGMXhsfO+BLtrJK0We6gg5o1JyO8xQm6peWDEUs17ACA5ziE/NIAkl9z2k" crossorigin="anonymous"></script>
 <style>
   body { font-family: system-ui, sans-serif; max-width: 680px; margin: 0 auto; padding: 12px; background:#f1f3f6; color:#1f2937; }
   h1 { font-size: 1.3rem; margin: 8px 0 14px; }
@@ -62,6 +65,13 @@
     <label id="lblCampoGerente" class="oculto">Usuario de gerente
       <input id="loginUsuario" placeholder="Nombre_id" autocomplete="username" maxlength="60" autocapitalize="off">
     </label>
+    <div id="bloqueApp" class="oculto">
+      <label>Código de Microsoft Authenticator
+        <input id="loginApp" inputmode="numeric" maxlength="6" placeholder="000000" autocomplete="one-time-code">
+      </label>
+      <button class="btn-principal" id="btnEntrarApp">Entrar</button>
+      <button class="btn-link" id="lnkPrimeraVez">Primera vez (o celular nuevo): recibir código por correo</button>
+    </div>
     <button class="btn-principal" id="btnPedirCodigo">Enviar código a mi correo</button>
   </div>
 
@@ -74,6 +84,24 @@
     <button class="btn-link" id="btnOtroCodigo">Pedir otro código / cambiar usuario</button>
   </div>
   <div class="error" id="errorLogin"></div>
+</div>
+
+<!-- ============ GERENTE: vincular Microsoft Authenticator ============ -->
+<div id="pantallaEnrolar" class="card oculto">
+  <b>🔐 Vincula Microsoft Authenticator</b>
+  <p class="info">Solo se hace una vez. Desde mañana entrarás con el código de la app, sin correos.</p>
+  <ol class="info" style="padding-left:18px">
+    <li>Abre <b>Microsoft Authenticator</b> en tu celular → <b>+</b> → <b>Otra cuenta (Google, Facebook, etc.)</b>.</li>
+    <li>Escanea este código QR. Si no puedes, elige "Escribir código manualmente" y copia la clave de abajo.</li>
+    <li>Escribe el código de 6 dígitos que aparece en la app.</li>
+  </ol>
+  <div style="text-align:center"><img id="qrApp" alt="Código QR para Microsoft Authenticator" style="width:220px;height:220px;image-rendering:pixelated"></div>
+  <p class="info" style="text-align:center">Clave: <b id="claveApp" style="font-family:monospace;letter-spacing:1px;word-break:break-all"></b></p>
+  <label>Código de la app
+    <input id="codigoEnrolar" inputmode="numeric" maxlength="6" placeholder="000000" autocomplete="one-time-code">
+  </label>
+  <button class="btn-principal" id="btnConfirmarApp">Vincular y entrar</button>
+  <div class="error" id="errorEnrolar"></div>
 </div>
 
 <!-- Barra con el usuario que inició sesión -->
@@ -138,7 +166,7 @@
 <div id="pantallaGerente" class="oculto">
   <div class="card">
     <b>🟢 Técnicos en jornada hoy</b> <span class="info">(se actualiza cada minuto)</span>
-    <p><a href="mapa.html">🗺️ Abrir mapa en tiempo real</a></p>
+    <p><a href="mapa.html">🗺️ Abrir mapa en tiempo real</a> <span class="info">(no pide otro código)</span></p>
     <table>
       <thead><tr><th>Técnico</th><th>Estado</th><th>Desde</th><th>📍</th><th>Alerta</th></tr></thead>
       <tbody id="tablaEnCurso"></tbody>
@@ -152,6 +180,8 @@
     </table>
   </div>
 </div>
+
+<p class="info" style="text-align:center;margin-top:20px">Versión v10 · 2026-11-14</p>
 
 <!-- Ventana reutilizable para justificaciones y códigos -->
 <div id="modal" class="modal oculto">
@@ -277,6 +307,8 @@ function cambiarModoLogin(modo) {
   $("tabGerente").classList.toggle("activa", modo === "gerente");
   mostrar("lblCampoUsuario", modo === "tecnico");
   mostrar("lblCampoGerente", modo === "gerente");
+  mostrar("bloqueApp", modo === "gerente");                 // gerentes: Microsoft Authenticator
+  mostrar("btnPedirCodigo", modo === "tecnico");            // técnicos: código por correo
   $("errorLogin").textContent = "";
 }
 
@@ -338,6 +370,7 @@ async function entrar() {
   try {
     const r = await api("verificar_codigo", { usuario: usuarioLogin, codigo });
     if (!r.ok) { $("errorLogin").textContent = r.mensaje; return; }
+    if (r.requiere_autenticador) { iniciarEnrolamiento(r.token); return; }
     sesion = { token: r.token, usuario: r.usuario, nombre: r.nombre, rol: r.rol, empleado: r.empleado, exp: r.exp };
     escribir(CLAVE_SESION, sesion);
     $("errorLogin").textContent = "";
@@ -349,11 +382,74 @@ async function entrar() {
   }
 }
 
+// ---------- Gerentes: entrar con Microsoft Authenticator ----------
+async function entrarConApp() {
+  const usuario = $("loginUsuario").value.trim(), codigo = $("loginApp").value.trim();
+  if (!usuario) { $("errorLogin").textContent = "Escribe tu usuario."; return; }
+  if (!/^\d{6}$/.test(codigo)) { $("errorLogin").textContent = "El código de la app tiene 6 dígitos."; return; }
+  $("btnEntrarApp").disabled = true;
+  try {
+    const r = await api("entrar_autenticador", { usuario, codigo });
+    if (!r.ok) { $("errorLogin").textContent = r.mensaje; return; }
+    guardarYEntrar(r);
+  } catch (e) { $("errorLogin").textContent = "Sin conexión. Intenta de nuevo."; }
+  finally { $("btnEntrarApp").disabled = false; }
+}
+
+function guardarYEntrar(r) {
+  sesion = { token: r.token, usuario: r.usuario, nombre: r.nombre, rol: r.rol, empleado: r.empleado, exp: r.exp };
+  escribir(CLAVE_SESION, sesion);
+  $("errorLogin").textContent = "";
+  $("loginApp").value = "";
+  iniciarSegunRol();
+}
+
+// ---------- Gerentes: vincular la app (una sola vez) ----------
+let tokenEnrolar = null;
+async function iniciarEnrolamiento(token) {
+  tokenEnrolar = token;
+  mostrar("pantallaLogin", false);
+  mostrar("pantallaEnrolar", true);
+  $("errorEnrolar").textContent = "";
+  try {
+    const r = await api("totp_iniciar", { token });
+    if (!r.ok) { $("errorEnrolar").textContent = r.mensaje || "No se pudo iniciar."; return; }
+    $("claveApp").textContent = r.secreto.replace(/(.{4})/g, "$1 ").trim();
+    if (window.qrcode) {
+      const qr = qrcode(0, "M");
+      qr.addData(r.uri);
+      qr.make();
+      $("qrApp").src = qr.createDataURL(6, 2);
+    } else {
+      mostrar("qrApp", false);
+    }
+    $("codigoEnrolar").focus();
+  } catch (e) { $("errorEnrolar").textContent = "Sin conexión. Intenta de nuevo."; }
+}
+
+async function confirmarEnrolamiento() {
+  const codigo = $("codigoEnrolar").value.trim();
+  if (!/^\d{6}$/.test(codigo)) { $("errorEnrolar").textContent = "El código de la app tiene 6 dígitos."; return; }
+  $("btnConfirmarApp").disabled = true;
+  try {
+    const r = await api("totp_confirmar", { token: tokenEnrolar, codigo });
+    if (!r.ok) { $("errorEnrolar").textContent = r.mensaje; return; }
+    tokenEnrolar = null;
+    $("qrApp").removeAttribute("src");
+    $("claveApp").textContent = "";
+    mostrar("pantallaEnrolar", false);
+    guardarYEntrar(r);
+  } catch (e) { $("errorEnrolar").textContent = "Sin conexión. Intenta de nuevo."; }
+  finally { $("btnConfirmarApp").disabled = false; }
+}
+
 function mostrarLogin(mensaje) {
   ["barraUsuario", "pantallaInicio", "pantallaJornada", "cardMisJornadas", "pantallaGerente"].forEach(id => mostrar(id, false));
   mostrar("pantallaLogin", true);
   mostrar("pasoUsuario", true);
   mostrar("pasoCodigo", false);
+  mostrar("pantallaEnrolar", false);
+  cambiarModoLogin(modoLogin);
   $("errorLogin").textContent = mensaje || "";
   cargarListaTecnicos();
 }
@@ -577,7 +673,8 @@ async function deshacer() {
     const s = await api("solicitar_borrado", { gerente: r.campo, motivo: r.texto, id: estado.id, fecha: estado.fecha,
                                               marca: paso.etiqueta, hora_marca: hora24(estado.marcas[paso.id]) });
     if (!s.ok) { $("mensaje").textContent = "❌ " + s.mensaje; return; }
-    const c = await pedirDatos({ titulo: s.mensaje + " Pídele el código y escríbelo aquí:", campo: { placeholder: "Código de 6 dígitos", numerico: true } });
+    const c = await pedirDatos({ titulo: s.mensaje + (s.metodo === "autenticador" ? " Escríbelo aquí:" : " Pídele el código y escríbelo aquí:"),
+                                 campo: { placeholder: "Código de 6 dígitos", numerico: true } });
     if (!c) { $("mensaje").textContent = "Borrado cancelado."; return; }
     const v = await api("confirmar_borrado", { solicitud: s.solicitud, codigo: c.campo });
     if (!v.ok) { $("mensaje").textContent = "❌ " + v.mensaje; return; }
@@ -755,6 +852,12 @@ $("loginCodigo").addEventListener("keydown", e => { if (e.key === "Enter") entra
 $("tabTecnico").onclick = () => cambiarModoLogin("tecnico");
 $("tabGerente").onclick = () => cambiarModoLogin("gerente");
 $("btnPedirCodigo").onclick = pedirCodigo;
+$("btnEntrarApp").onclick = entrarConApp;
+$("lnkPrimeraVez").onclick = () => { mostrar("bloqueApp", false); mostrar("btnPedirCodigo", true); $("errorLogin").textContent = ""; };
+$("btnConfirmarApp").onclick = confirmarEnrolamiento;
+["loginApp", "codigoEnrolar"].forEach(id => $(id).addEventListener("input", e => e.target.value = e.target.value.replace(/\D/g, "").slice(0, 6)));
+$("loginApp").addEventListener("keydown", e => { if (e.key === "Enter") entrarConApp(); });
+$("codigoEnrolar").addEventListener("keydown", e => { if (e.key === "Enter") confirmarEnrolamiento(); });
 $("btnEntrar").onclick = entrar;
 $("btnOtroCodigo").onclick = () => { mostrar("pasoCodigo", false); mostrar("pasoUsuario", true); $("errorLogin").textContent = ""; };
 $("btnSalir").onclick = salir;
