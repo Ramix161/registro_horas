@@ -309,20 +309,33 @@ $("fecha").value = hoy();
 $("fecha").onchange = () => { primeraCarga = true; colorPorId = {}; cargar(); programarRefresco(); };
 $("verRecorridos").onchange = cargar;
 $("btnTodos").onclick = () => { if (window._limites && window._limites.length) mapa.fitBounds(window._limites, { padding: [40, 40], maxZoom: 15 }); };
+function cuentaRegresiva(boton, segundos) {
+  const texto = boton.dataset.texto || boton.textContent;
+  boton.dataset.texto = texto;
+  boton.disabled = true;
+  const tic = () => {
+    if (segundos <= 0) { boton.disabled = false; boton.textContent = texto; return; }
+    boton.textContent = `Espera ${segundos} s`;
+    segundos--;
+    setTimeout(tic, 1000);
+  };
+  tic();
+}
+
 $("btnPedir").onclick = async () => {
   const usuario = $("usuario").value.trim();
   if (!usuario) { $("loginError").textContent = "Escribe tu usuario."; return; }
   $("btnPedir").disabled = true;
   try {
     const r = await api("pedir_codigo", { usuario });
-    if (!r.ok) { $("loginError").textContent = r.mensaje; return; }
+    if (!r.ok) { $("loginError").textContent = r.mensaje; if (r.espera) cuentaRegresiva($("btnPedir"), r.espera); return; }
     $("infoCodigo").textContent = r.mensaje;
     $("loginError").textContent = "";
     $("pasoUsuario").classList.add("oculto");
     $("pasoCodigo").classList.remove("oculto");
     $("codigo").value = ""; $("codigo").focus();
   } catch (e) { $("loginError").textContent = "Sin conexión. Intenta de nuevo."; }
-  finally { $("btnPedir").disabled = false; }
+  finally { if (!$("btnPedir").textContent.startsWith("Espera")) $("btnPedir").disabled = false; }
 };
 $("btnEntrar").onclick = async () => {
   const codigo = $("codigo").value.trim();
