@@ -42,7 +42,7 @@
 <!-- PANTALLA 1: datos del técnico -->
 <div id="pantallaInicio" class="card">
   <label>Nombre del técnico <input id="nombre" placeholder="Ej. Juan Pérez" maxlength="80"></label>
-  <label>Llamada de servicio (5 dígitos)
+  <label>Número (5 dígitos)
     <input id="numero" inputmode="numeric" maxlength="5" placeholder="00000" autocomplete="off">
   </label>
   <div class="error" id="errorInicio"></div>
@@ -64,6 +64,7 @@
     </div>
     <button class="btn-secundario" id="btnDeshacer" style="width:100%;margin-top:8px">↶ Deshacer última marca</button>
     <div id="mensaje"></div>
+    <p class="info" id="infoRastreo"></p>
   </div>
 
   <div class="card">
@@ -221,13 +222,78 @@ async function reportarEstado(accion, promesaUbicacion) {
   const ubic = await promesaUbicacion;
   const datos = {
     tipo: "estado", id: estado.id, nombre: estado.nombre, numero: estado.numero, fecha: estado.fecha,
-    estado: textoEstadoActual(), ultima_accion: accion, hora: hora24(Date.now()),
+    estado: textoEstadoActual(), ultima_accion: accion, evento: accion, hora: hora24(Date.now()),
     ubic: (ubic && ubic.startsWith("https://")) ? ubic : (ubic || "no disponible")
   };
+  // Coordenadas para el mapa (se sacan del link de Maps)
+  const c = /q=(-?[\d.]+),(-?[\d.]+)/.exec(datos.ubic);
+  if (c) { datos.lat = c[1]; datos.lng = c[2]; }
   try {
     await fetch(URL_API, { method: "POST", headers: { "Content-Type": "text/plain;charset=utf-8" }, body: JSON.stringify(datos) });
     cargarEnCurso();
   } catch (e) { /* sin conexión: la jornada completa se envía igual al final */ }
+}
+
+// ======================= RASTREO DURANTE EL RECORRIDO =======================
+const RASTREO_TRASLADO_MS = 1 * 60 * 1000;   // cada 1 minuto, SOLO durante los traslados (ida y vuelta)
+let ultimoRastreo = 0, rastreando = false, wakeLock = null;
+
+const jornadaActiva = () => !!estado && pasoActual() > 0 && !finalizada();
+function enTraslado() {
+  if (!jornadaActiva() || enPausa()) return false;
+  const ultimo = PASOS[pasoActual() - 1].id;
+  return ultimo === "ida_1" || ultimo === "vuelta_1";
+}
+
+// Envía un punto de ubicación si ya pasó el intervalo (forzar = enviar ya)
+async function rastrear(forzar) {
+  if (!enTraslado() || rastreando) return;             // fuera de traslado no se rastrea
+  if (!forzar && Date.now() - ultimoRastreo < RASTREO_TRASLADO_MS) return;
+  rastreando = true;
+  ultimoRastreo = Date.now();
+  const pos = await new Promise(res => {
+    if (!navigator.geolocation) return res(null);
+    navigator.geolocation.getCurrentPosition(p => res(p.coords), () => res(null),
+      { enableHighAccuracy: true, timeout: 20000, maximumAge: 30000 });
+  });
+  if (pos && enTraslado()) {
+    try {
+      await fetch(URL_API, {
+        method: "POST", headers: { "Content-Type": "text/plain;charset=utf-8" },
+        body: JSON.stringify({
+          tipo: "ubicacion", id: estado.id, nombre: estado.nombre, numero: estado.numero, fecha: estado.fecha,
+          estado: textoEstadoActual(), evento: "Rastreo", hora: hora24(Date.now()),
+          lat: pos.latitude.toFixed(6), lng: pos.longitude.toFixed(6), precision: Math.round(pos.accuracy)
+        })
+      });
+    } catch (e) { /* sin señal: se intenta en el siguiente intervalo */ }
+  }
+  rastreando = false;
+  dibujarInfoRastreo(pos);
+}
+
+// Mantiene la pantalla encendida durante los traslados (si el celular lo permite)
+async function actualizarWakeLock() {
+  const debe = enTraslado() && document.visibilityState === "visible";
+  try {
+    if (debe && !wakeLock && "wakeLock" in navigator) {
+      wakeLock = await navigator.wakeLock.request("screen");
+      wakeLock.addEventListener("release", () => { wakeLock = null; });
+    } else if (!debe && wakeLock) {
+      await wakeLock.release();
+      wakeLock = null;
+    }
+  } catch (e) { /* el navegador no lo permite */ }
+}
+
+function dibujarInfoRastreo(pos) {
+  const info = $("infoRastreo");
+  if (!info) return;
+  if (!enTraslado()) { info.textContent = ""; return; }
+  const pantalla = wakeLock ? " · 🔆 pantalla encendida" : " · ⚠️ no bloquees el celular";
+  const ultimo = ultimoRastreo ? ` · último envío ${hora24(ultimoRastreo)}` : "";
+  const sinGps = pos === null ? " · ⚠️ sin GPS" : "";
+  info.textContent = `📡 Rastreo de traslado activo (cada 1 min)${ultimo}${pantalla}${sinGps}`;
 }
 
 // ======================= VENTANA DE JUSTIFICACIÓN =======================
@@ -489,6 +555,8 @@ function dibujar() {
   });
 
   actualizarCronometro();
+  actualizarWakeLock();
+  dibujarInfoRastreo();
 }
 
 function actualizarCronometro() {
@@ -602,6 +670,11 @@ if (estado) {
 }
 setInterval(actualizarCronometro, 1000);
 setInterval(cargarEnCurso, 60000);   // refresca el panel en vivo cada minuto
+setInterval(() => rastrear(false), 15000);   // revisa cada 15 s si toca enviar ubicación
+document.addEventListener("visibilitychange", () => {
+  if (document.visibilityState === "visible") rastrear(true);   // al volver a la página, envía de inmediato
+  actualizarWakeLock();
+});
 cargarHistorial();
 cargarEnCurso();
 </script>
