@@ -2,10 +2,13 @@
 <html lang="es">
 <head>
 <meta charset="UTF-8">
+<meta name="referrer" content="no-referrer">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Mapa de Técnicos en Tiempo Real</title>
-<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
-<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
+      integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="">
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
+        integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
 <style>
   * { box-sizing: border-box; }
   html, body { margin:0; height:100%; font-family: system-ui, sans-serif; color:#1f2937; }
@@ -53,6 +56,8 @@
   <label><input type="checkbox" id="verRecorridos" checked> Recorridos</label>
   <button id="btnTodos">Ver todos</button>
   <span id="actualizado"></span>
+  <span id="lblGerente" style="font-size:.85rem"></span>
+  <button id="btnSalir" class="oculto">Cerrar sesión</button>
 </header>
 
 <main>
@@ -62,10 +67,18 @@
 
 <div id="login" class="oculto">
   <div class="caja">
-    <b>🔒 Clave del mapa</b>
-    <input id="clave" type="password" placeholder="Escribe la clave" autocomplete="off">
+    <b>🔒 Acceso de gerentes</b>
+    <div id="pasoUsuario">
+      <input id="usuario" placeholder="Usuario (Nombre_id)" autocomplete="username" autocapitalize="off" maxlength="60">
+      <button id="btnPedir">Enviar código a mi correo</button>
+    </div>
+    <div id="pasoCodigo" class="oculto">
+      <p id="infoCodigo" style="font-size:.85rem;color:#4b5563"></p>
+      <input id="codigo" inputmode="numeric" maxlength="6" placeholder="Código de 6 dígitos" autocomplete="one-time-code">
+      <button id="btnEntrar">Entrar</button>
+      <p><a href="#" id="lnkOtro" style="font-size:.85rem">Pedir otro código / cambiar usuario</a></p>
+    </div>
     <div id="loginError"></div>
-    <button id="btnEntrar">Entrar</button>
   </div>
 </div>
 
@@ -81,8 +94,29 @@ const COLORES = ["#2563eb", "#dc2626", "#16a34a", "#9333ea", "#ea580c", "#0891b2
 const $ = (id) => document.getElementById(id);
 const dos = (n) => String(n).padStart(2, "0");
 function hoy() { const d = new Date(); return `${d.getFullYear()}-${dos(d.getMonth() + 1)}-${dos(d.getDate())}`; }
-function leerClave() { try { return localStorage.getItem("claveMapa") || ""; } catch (e) { return ""; } }
-function guardarClave(c) { try { localStorage.setItem("claveMapa", c); } catch (e) {} }
+// La sesión del gerente vive solo en esta pestaña (sessionStorage): al cerrarla, se cierra la sesión
+function leerSesion() { try { const s = JSON.parse(sessionStorage.getItem("sesionMapa")); return s && s.exp > Date.now() ? s : null; } catch (e) { return null; } }
+function guardarSesion(s) { try { s ? sessionStorage.setItem("sesionMapa", JSON.stringify(s)) : sessionStorage.removeItem("sesionMapa"); } catch (e) {} }
+try { localStorage.removeItem("claveMapa"); } catch (e) {}   // limpia la clave de la versión anterior
+
+async function api(accion, datos = {}) {
+  const s = leerSesion();
+  const resp = await fetch(URL_API, {
+    method: "POST", headers: { "Content-Type": "text/plain;charset=utf-8" },
+    body: JSON.stringify(Object.assign({ accion, token: s && s.token }, datos))
+  });
+  return resp.json();
+}
+
+function mostrarLogin(mensaje) {
+  guardarSesion(null);
+  $("btnSalir").classList.add("oculto");
+  $("lblGerente").textContent = "";
+  $("pasoUsuario").classList.remove("oculto");
+  $("pasoCodigo").classList.add("oculto");
+  $("loginError").textContent = mensaje || "";
+  $("login").classList.remove("oculto");
+}
 const num = (v) => parseFloat(String(v).replace(",", "."));        // por si Sheets usa coma decimal
 const coordValida = (lat, lng) => isFinite(lat) && isFinite(lng) && !(lat === 0 && lng === 0);
 
@@ -130,7 +164,8 @@ function claseSenal(minutos, esHoy) {
 function contenidoPopup(t) {
   const div = el("div");
   div.appendChild(el("b", "", t.nombre));
-  div.appendChild(el("div", "", "Número: " + (t.numero || "-")));
+  div.appendChild(el("div", "", "Empleado: " + (t.empleado || "-") + " · Llamada: " + (t.llamada_servicio || "-")));
+  if (t.alerta) { const al = el("div", "", t.alerta); al.style.color = "#b91c1c"; div.appendChild(al); }
   div.appendChild(el("div", "", "Estado: " + (t.estado || "-")));
   div.appendChild(el("div", "", "Última acción: " + (t.ultima_accion || "-") + " (" + (t.hora || "") + ")"));
   div.appendChild(el("div", "", "Última señal GPS: " + (t.ultima_senal || "-")));
@@ -143,27 +178,36 @@ function contenidoPopup(t) {
 
 // ======================= CARGA DE DATOS =======================
 async function cargar() {
-  const clave = leerClave();
-  if (!clave) { $("login").classList.remove("oculto"); return; }
+  const s = leerSesion();
+  if (!s) { mostrarLogin(""); return; }
+  $("lblGerente").textContent = "👤 " + s.nombre;
+  $("btnSalir").classList.remove("oculto");
   const fecha = $("fecha").value;
   const esHoy = fecha === hoy();
 
   let datos;
   try {
-    const url = `${URL_API}?vista=mapa&fecha=${encodeURIComponent(fecha)}&clave=${encodeURIComponent(clave)}`;
-    datos = await (await fetch(url)).json();
+    datos = await api("mapa", { fecha });
   } catch (e) {
-    $("actualizado").textContent = "⚠️ Sin conexión, reintentando...";
+    mostrarAviso("⚠️ No se pudo conectar con el script de Google. Revisa tu internet y que la implementación tenga acceso para \"Cualquier usuario\". Reintentando...");
     return;
   }
-  if (datos.error) {
-    guardarClave("");
-    $("loginError").textContent = datos.error;
-    $("login").classList.remove("oculto");
+  if (datos.error === "sesion" || datos.error === "permiso") {
+    mostrarLogin(datos.mensaje || "Inicia sesión.");
+    return;
+  }
+  if (!datos || !Array.isArray(datos.tecnicos) || !Array.isArray(datos.puntos)) {
+    mostrarAviso("⚠️ El script de Google no está actualizado. En Apps Script pega el Code.gs nuevo y publica con " +
+      "Implementar → Gestionar implementaciones → ✏️ → Nueva versión. Revisa también que URL_API sea la misma que la de index.html.");
     return;
   }
 
-  dibujar(datos, esHoy);
+  try {
+    dibujar(datos, esHoy);
+  } catch (e) {
+    mostrarAviso("⚠️ Error al dibujar el mapa: " + e.message);
+    return;
+  }
   $("actualizado").textContent = "Actualizado " + new Date().toLocaleTimeString("es", { hour12: false });
 }
 
@@ -200,7 +244,7 @@ function dibujar(datos, esHoy) {
       L.polyline(recorrido.map(p => [p.lat, p.lng]), { color, weight: 4, opacity: .7 }).addTo(capaRecorridos);
       recorrido.filter(p => p.evento && p.evento !== "Rastreo").forEach(p => {
         L.circleMarker([p.lat, p.lng], { radius: 6, color: "#fff", weight: 2, fillColor: color, fillOpacity: 1 })
-          .bindTooltip(`${t.nombre}: ${p.evento} · ${p.hora}`)
+          .bindTooltip(el("span", "", `${t.nombre}: ${p.evento} · ${p.hora}`))   // como texto, nunca como HTML
           .addTo(capaRecorridos);
       });
       recorrido.forEach(p => limites.push([p.lat, p.lng]));
@@ -229,7 +273,8 @@ function dibujar(datos, esHoy) {
     tarjeta.appendChild(fila);
     tarjeta.appendChild(el("div", "detalle", t.estado || ""));
     tarjeta.appendChild(el("div", "detalle",
-      `Núm. ${t.numero || "-"} · ${t.ultima_accion || ""} ${t.hora || ""}` + (tieneUbic ? "" : " · 📍 sin ubicación")));
+      `${t.empleado || ""} · Llamada ${t.llamada_servicio || "-"} · ${t.ultima_accion || ""} ${t.hora || ""}` + (tieneUbic ? "" : " · 📍 sin ubicación")));
+    if (t.alerta) { const al = el("div", "detalle", t.alerta); al.style.color = "#b91c1c"; tarjeta.appendChild(al); }
     tarjeta.onclick = () => {
       if (marcadores[t.id]) { mapa.setView(marcadores[t.id].getLatLng(), 15); marcadores[t.id].openPopup(); }
     };
@@ -243,6 +288,15 @@ function dibujar(datos, esHoy) {
   window._limites = limites;
 }
 
+function mostrarAviso(texto) {
+  const lista = $("lista");
+  lista.innerHTML = "";
+  const aviso = el("div", "vacio", texto);
+  aviso.style.color = "#b91c1c";
+  lista.appendChild(aviso);
+  $("actualizado").textContent = "";
+}
+
 function programarRefresco() {
   clearInterval(temporizador);
   if ($("fecha").value === hoy()) temporizador = setInterval(cargar, ACTUALIZAR_CADA_MS);
@@ -253,16 +307,46 @@ $("fecha").value = hoy();
 $("fecha").onchange = () => { primeraCarga = true; colorPorId = {}; cargar(); programarRefresco(); };
 $("verRecorridos").onchange = cargar;
 $("btnTodos").onclick = () => { if (window._limites && window._limites.length) mapa.fitBounds(window._limites, { padding: [40, 40], maxZoom: 15 }); };
-$("btnEntrar").onclick = () => {
-  const c = $("clave").value.trim();
-  if (!c) return;
-  guardarClave(c);
-  $("loginError").textContent = "";
-  $("login").classList.add("oculto");
-  primeraCarga = true;
-  cargar();
+$("btnPedir").onclick = async () => {
+  const usuario = $("usuario").value.trim();
+  if (!usuario) { $("loginError").textContent = "Escribe tu usuario."; return; }
+  $("btnPedir").disabled = true;
+  try {
+    const r = await api("pedir_codigo", { usuario });
+    if (!r.ok) { $("loginError").textContent = r.mensaje; return; }
+    $("infoCodigo").textContent = r.mensaje;
+    $("loginError").textContent = "";
+    $("pasoUsuario").classList.add("oculto");
+    $("pasoCodigo").classList.remove("oculto");
+    $("codigo").value = ""; $("codigo").focus();
+  } catch (e) { $("loginError").textContent = "Sin conexión. Intenta de nuevo."; }
+  finally { $("btnPedir").disabled = false; }
 };
-$("clave").addEventListener("keydown", e => { if (e.key === "Enter") $("btnEntrar").click(); });
+$("btnEntrar").onclick = async () => {
+  const codigo = $("codigo").value.trim();
+  if (!/^\d{6}$/.test(codigo)) { $("loginError").textContent = "El código tiene 6 dígitos."; return; }
+  $("btnEntrar").disabled = true;
+  try {
+    const r = await api("verificar_codigo", { usuario: $("usuario").value.trim(), codigo });
+    if (!r.ok) { $("loginError").textContent = r.mensaje; return; }
+    if (r.rol !== "gerente") {
+      $("loginError").textContent = "El mapa es solo para gerentes.";
+      await api("cerrar_sesion", { token: r.token });
+      return;
+    }
+    guardarSesion({ token: r.token, nombre: r.nombre, exp: r.exp });
+    $("loginError").textContent = "";
+    $("login").classList.add("oculto");
+    primeraCarga = true;
+    cargar();
+  } catch (e) { $("loginError").textContent = "Sin conexión. Intenta de nuevo."; }
+  finally { $("btnEntrar").disabled = false; }
+};
+$("lnkOtro").onclick = (e) => { e.preventDefault(); $("pasoCodigo").classList.add("oculto"); $("pasoUsuario").classList.remove("oculto"); };
+$("codigo").addEventListener("input", e => e.target.value = e.target.value.replace(/\D/g, "").slice(0, 6));
+$("codigo").addEventListener("keydown", e => { if (e.key === "Enter") $("btnEntrar").click(); });
+$("usuario").addEventListener("keydown", e => { if (e.key === "Enter") $("btnPedir").click(); });
+$("btnSalir").onclick = async () => { try { await api("cerrar_sesion"); } catch (e) {} mostrarLogin("Sesión cerrada."); };
 
 cargar();
 programarRefresco();
