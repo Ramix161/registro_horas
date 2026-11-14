@@ -1,0 +1,890 @@
+<!DOCTYPE html>
+<!-- Registro de Horas · index.html · v10 · 2026-11-14 -->
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="referrer" content="no-referrer">
+<title>Registro de Horas - Técnicos</title>
+<script src="https://unpkg.com/qrcode-generator@1.4.4/qrcode.js"
+        integrity="sha384-8FWZA6BGMXhsfO+BLtrJK0We6gg5o1JyO8xQm6peWDEUs17ACA5ziE/NIAkl9z2k" crossorigin="anonymous"></script>
+<style>
+  body { font-family: system-ui, sans-serif; max-width: 680px; margin: 0 auto; padding: 12px; background:#f1f3f6; color:#1f2937; }
+  h1 { font-size: 1.3rem; margin: 8px 0 14px; }
+  .card { background:#fff; border-radius:10px; padding:16px; box-shadow:0 1px 3px #0002; margin-bottom:14px; }
+  label { display:block; font-size:.9rem; margin-bottom:10px; }
+  input, textarea { width:100%; padding:10px; box-sizing:border-box; font-size:1rem; margin-top:4px; font-family:inherit; }
+  button { border:0; border-radius:8px; padding:12px 16px; font-size:1rem; cursor:pointer; }
+  button:disabled { opacity:.45; cursor:not-allowed; }
+  .btn-principal { width:100%; background:#2563eb; color:#fff; font-size:1.15rem; padding:18px; margin-top:12px; }
+  .fila-botones { display:flex; gap:8px; margin-top:10px; }
+  .fila-botones button { flex:1; }
+  .btn-pausa { background:#f59e0b; color:#fff; }
+  .btn-pausa.reanudar { background:#16a34a; }
+  .btn-cerrar { background:#dc2626; color:#fff; }
+  .btn-secundario { background:#e5e7eb; color:#111; }
+  .btn-link { background:none; color:#2563eb; padding:6px 0; font-size:.9rem; text-decoration:underline; }
+  .oculto { display:none !important; }
+  .barra-usuario { display:flex; align-items:center; gap:8px; font-size:.9rem; margin-bottom:12px; }
+  .barra-usuario span { flex:1; }
+  .barra-usuario button { padding:6px 10px; font-size:.85rem; }
+  .pestanas { display:flex; gap:6px; margin-bottom:12px; }
+  .pestanas button { flex:1; background:#e5e7eb; }
+  .pestanas button.activa { background:#1e3a8a; color:#fff; }
+  #tramoActual { text-align:center; font-size:1rem; color:#4b5563; }
+  #cronometro { text-align:center; font-size:3rem; font-weight:700; font-variant-numeric: tabular-nums; margin:6px 0; }
+  .excedido { color:#dc2626; }
+  .pausado { color:#d97706; }
+  table { width:100%; border-collapse:collapse; font-size:.88rem; }
+  th, td { padding:7px 5px; border-bottom:1px solid #e5e7eb; text-align:left; vertical-align:top; }
+  td.hora { font-variant-numeric: tabular-nums; font-weight:600; white-space:nowrap; }
+  tr.siguiente { background:#eff6ff; }
+  #mensaje { margin-top:10px; font-weight:600; }
+  .info { font-size:.85rem; color:#6b7280; margin:4px 0; }
+  .error { color:#dc2626; font-size:.85rem; min-height:1.1em; }
+  .exito { color:#15803d; font-size:.85rem; }
+  .modal { position:fixed; inset:0; background:#0007; display:flex; align-items:center; justify-content:center; padding:16px; z-index:10; }
+  .modal-caja { background:#fff; border-radius:10px; padding:18px; width:100%; max-width:440px; }
+</style>
+</head>
+<body>
+<h1>⏱ Registro de Horas de Operación</h1>
+
+<!-- ============ INICIO DE SESIÓN ============ -->
+<div id="pantallaLogin" class="card oculto">
+  <div class="pestanas">
+    <button id="tabTecnico" class="activa">Técnico</button>
+    <button id="tabGerente">Gerente</button>
+  </div>
+
+  <div id="pasoUsuario">
+    <label id="lblCampoUsuario">Tu nombre
+      <input id="loginNombre" list="listaTecnicos" placeholder="Empieza a escribir tu nombre..." autocomplete="off" maxlength="80">
+      <datalist id="listaTecnicos"></datalist>
+    </label>
+    <label id="lblCampoGerente" class="oculto">Usuario de gerente
+      <input id="loginUsuario" placeholder="Nombre_id" autocomplete="username" maxlength="60" autocapitalize="off">
+    </label>
+    <div id="bloqueApp" class="oculto">
+      <label>Código de Microsoft Authenticator
+        <input id="loginApp" inputmode="numeric" maxlength="6" placeholder="000000" autocomplete="one-time-code">
+      </label>
+      <button class="btn-principal" id="btnEntrarApp">Entrar</button>
+      <button class="btn-link" id="lnkPrimeraVez">Primera vez (o celular nuevo): recibir código por correo</button>
+    </div>
+    <button class="btn-principal" id="btnPedirCodigo">Enviar código a mi correo</button>
+  </div>
+
+  <div id="pasoCodigo" class="oculto">
+    <p class="info" id="infoCodigo"></p>
+    <label>Código de 6 dígitos
+      <input id="loginCodigo" inputmode="numeric" maxlength="6" autocomplete="one-time-code" placeholder="000000">
+    </label>
+    <button class="btn-principal" id="btnEntrar">Entrar</button>
+    <button class="btn-link" id="btnOtroCodigo">Pedir otro código / cambiar usuario</button>
+  </div>
+  <div class="error" id="errorLogin"></div>
+</div>
+
+<!-- ============ GERENTE: vincular Microsoft Authenticator ============ -->
+<div id="pantallaEnrolar" class="card oculto">
+  <b>🔐 Vincula Microsoft Authenticator</b>
+  <p class="info">Solo se hace una vez. Desde mañana entrarás con el código de la app, sin correos.</p>
+  <ol class="info" style="padding-left:18px">
+    <li>Abre <b>Microsoft Authenticator</b> en tu celular → <b>+</b> → <b>Otra cuenta (Google, Facebook, etc.)</b>.</li>
+    <li>Escanea este código QR. Si no puedes, elige "Escribir código manualmente" y copia la clave de abajo.</li>
+    <li>Escribe el código de 6 dígitos que aparece en la app.</li>
+  </ol>
+  <div style="text-align:center"><img id="qrApp" alt="Código QR para Microsoft Authenticator" style="width:220px;height:220px;image-rendering:pixelated"></div>
+  <p class="info" style="text-align:center">Clave: <b id="claveApp" style="font-family:monospace;letter-spacing:1px;word-break:break-all"></b></p>
+  <label>Código de la app
+    <input id="codigoEnrolar" inputmode="numeric" maxlength="6" placeholder="000000" autocomplete="one-time-code">
+  </label>
+  <button class="btn-principal" id="btnConfirmarApp">Vincular y entrar</button>
+  <div class="error" id="errorEnrolar"></div>
+</div>
+
+<!-- Barra con el usuario que inició sesión -->
+<div id="barraUsuario" class="barra-usuario oculto">
+  <span>👤 <b id="lblUsuario"></b> <span class="info" id="lblRol"></span></span>
+  <button class="btn-secundario" id="btnSalir">Cerrar sesión</button>
+</div>
+
+<!-- ============ TÉCNICO: inicio de jornada ============ -->
+<div id="pantallaInicio" class="card oculto">
+  <label>Llamada de servicio (5 dígitos)
+    <input id="llamada" inputmode="numeric" maxlength="5" placeholder="00000" autocomplete="off">
+  </label>
+  <div class="error" id="errorInicio"></div>
+  <p class="info">Fecha: <span id="fechaHoy"></span></p>
+  <p class="info">📍 La página pedirá permiso para usar tu ubicación. Acéptalo para registrar dónde se hace cada marca.</p>
+  <button class="btn-principal" id="btnIniciar">Iniciar jornada</button>
+</div>
+
+<!-- ============ TÉCNICO: jornada en curso ============ -->
+<div id="pantallaJornada" class="oculto">
+  <div class="card">
+    <p class="info">Llamada de servicio: <b id="lblLlamada"></b> · Fecha: <b id="lblFecha"></b></p>
+    <div id="tramoActual">Listo para comenzar</div>
+    <div id="cronometro">00:00:00</div>
+    <button class="btn-principal" id="btnMarcar">Marcar</button>
+    <div class="fila-botones">
+      <button class="btn-pausa" id="btnPausa">⏸ Pausa</button>
+      <button class="btn-cerrar" id="btnCerrar">⛔ Cerrar marcaje</button>
+    </div>
+    <button class="btn-secundario" id="btnDeshacer" style="width:100%;margin-top:8px">↶ Deshacer última marca</button>
+    <div id="mensaje"></div>
+    <p class="info" id="infoRastreo"></p>
+  </div>
+
+  <div class="card">
+    <table>
+      <thead><tr><th>Marca</th><th>Hora (24 h)</th><th>Duración</th><th>📍</th></tr></thead>
+      <tbody id="tablaMarcas"></tbody>
+    </table>
+  </div>
+
+  <div class="card" id="cardPausas">
+    <b>Pausas</b>
+    <table>
+      <thead><tr><th>Inicio</th><th>Fin</th><th>Duración</th><th>Motivo</th></tr></thead>
+      <tbody id="tablaPausas"></tbody>
+    </table>
+  </div>
+</div>
+
+<!-- TÉCNICO: solo sus jornadas -->
+<div id="cardMisJornadas" class="card oculto">
+  <b>Mis últimas jornadas</b>
+  <table>
+    <thead><tr><th>Fecha</th><th>Llamada</th><th>Estado</th><th>Operación</th></tr></thead>
+    <tbody id="tablaMisJornadas"></tbody>
+  </table>
+</div>
+
+<!-- ============ GERENTE: vista completa ============ -->
+<div id="pantallaGerente" class="oculto">
+  <div class="card">
+    <b>🟢 Técnicos en jornada hoy</b> <span class="info">(se actualiza cada minuto)</span>
+    <p><a href="mapa.html">🗺️ Abrir mapa en tiempo real</a> <span class="info">(no pide otro código)</span></p>
+    <table>
+      <thead><tr><th>Técnico</th><th>Estado</th><th>Desde</th><th>📍</th><th>Alerta</th></tr></thead>
+      <tbody id="tablaEnCurso"></tbody>
+    </table>
+  </div>
+  <div class="card">
+    <b>Últimas jornadas (todos)</b>
+    <table>
+      <thead><tr><th>Técnico</th><th>Fecha</th><th>Llamada</th><th>Estado</th><th>Operación</th><th>Verificación</th></tr></thead>
+      <tbody id="tablaHistorial"></tbody>
+    </table>
+  </div>
+</div>
+
+<p class="info" style="text-align:center;margin-top:20px">Versión v10 · 2026-11-14</p>
+
+<!-- Ventana reutilizable para justificaciones y códigos -->
+<div id="modal" class="modal oculto">
+  <div class="modal-caja">
+    <b id="modalTitulo"></b>
+    <textarea id="modalTexto" rows="3" maxlength="300" placeholder="Escribe la justificación..."></textarea>
+    <input id="modalCampo" autocomplete="off" maxlength="60" class="oculto">
+    <div class="error" id="modalError"></div>
+    <div class="fila-botones">
+      <button class="btn-secundario" id="modalCancelar">Cancelar</button>
+      <button class="btn-principal" id="modalOk" style="margin-top:0;padding:12px">Confirmar</button>
+    </div>
+  </div>
+</div>
+
+<script>
+// ======================= CONFIGURACIÓN =======================
+const URL_API = "https://script.google.com/macros/s/AKfycbyjQOBh_bHY-DS5z3v3d3hRBQ4NVNUW7kE6VM-u97vy_dl4AvQLu3Ry8hDNU--djwgOaQ/exec";
+const MINUTOS_ALMUERZO = 45;
+const CLAVE_LOCAL = "jornadaEnCurso";
+const CLAVE_SESION = "sesionRH";
+const RASTREO_TRASLADO_MS = 1 * 60 * 1000;   // cada 1 minuto, SOLO durante los traslados
+
+const PASOS = [
+  { id: "ida_1",    etiqueta: "Traslado ida_1",    detalle: "Salida del taller",        estado: "🚗 En ruta al sitio" },
+  { id: "ida_2",    etiqueta: "Traslado ida_2",    detalle: "Llegada al sitio",         estado: "📍 Llegó al sitio" },
+  { id: "ejec_1",   etiqueta: "Ejecución 1",       detalle: "Inicia operación",         estado: "🔧 Ejecutando" },
+  { id: "ejec_2",   etiqueta: "Ejecución 2",       detalle: "Termina operación",        estado: "📍 En sitio (terminó ejecución)" },
+  { id: "alm_ini",  etiqueta: "Entrada almuerzo",  detalle: "Inicia almuerzo (45 min)", estado: "🍽 En almuerzo" },
+  { id: "alm_fin",  etiqueta: "Salida almuerzo",   detalle: "Termina almuerzo",         estado: "📍 En sitio (regresó de almuerzo)" },
+  { id: "ejec_3",   etiqueta: "Ejecución 3",       detalle: "Inicia operación",         estado: "🔧 Ejecutando" },
+  { id: "ejec_4",   etiqueta: "Ejecución 4",       detalle: "Termina operación",        estado: "📍 En sitio (terminó ejecución)" },
+  { id: "vuelta_1", etiqueta: "Traslado vuelta_1", detalle: "Sale del sitio",           estado: "🚗 Regresando" },
+  { id: "vuelta_2", etiqueta: "Traslado vuelta_2", detalle: "Llega a destino",          estado: "✅ Jornada terminada" }
+];
+const TRAMOS = [
+  { id: "dur_ida",    nombre: "Traslado de ida",    ini: "ida_1",    fin: "ida_2" },
+  { id: "dur_ejec_a", nombre: "Ejecución (mañana)", ini: "ejec_1",   fin: "ejec_2" },
+  { id: "dur_alm",    nombre: "Almuerzo",           ini: "alm_ini",  fin: "alm_fin", cuentaRegresiva: true },
+  { id: "dur_ejec_b", nombre: "Ejecución (tarde)",  ini: "ejec_3",   fin: "ejec_4" },
+  { id: "dur_vuelta", nombre: "Traslado de vuelta", ini: "vuelta_1", fin: "vuelta_2" }
+];
+
+let sesion = null;        // { token, usuario, nombre, rol, empleado, exp }
+let estado = null;        // jornada en curso (ver iniciarJornada)
+let pendientes = [];
+let enviando = false;
+let tecnicosLista = [];
+let modoLogin = "tecnico";
+let usuarioLogin = "";
+
+// ======================= UTILIDADES =======================
+const $ = (id) => document.getElementById(id);
+const dos = (n) => String(n).padStart(2, "0");
+const mostrar = (id, si) => $(id).classList.toggle("oculto", !si);
+
+function hora24(ms) { const d = new Date(ms); return `${dos(d.getHours())}:${dos(d.getMinutes())}:${dos(d.getSeconds())}`; }
+function duracion(ms) {
+  const s = Math.max(0, Math.floor(ms / 1000));
+  return `${dos(Math.floor(s / 3600))}:${dos(Math.floor(s % 3600 / 60))}:${dos(s % 60)}`;
+}
+function fechaHoy() { const d = new Date(); return `${d.getFullYear()}-${dos(d.getMonth() + 1)}-${dos(d.getDate())}`; }
+const nuevoId = () => Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
+
+function leer(clave)         { try { return JSON.parse(localStorage.getItem(clave)); } catch (e) { return null; } }
+function escribir(clave, v)  { try { localStorage.setItem(clave, JSON.stringify(v)); } catch (e) {} }
+function borrar(clave)       { try { localStorage.removeItem(clave); } catch (e) {} }
+const guardarLocal = () => escribir(CLAVE_LOCAL, estado);
+
+function fila(valores, opciones = {}) {
+  const tr = document.createElement("tr");
+  valores.forEach((v, c) => {
+    const td = document.createElement("td");
+    if (opciones.ubic === c) celdaUbicacion(td, v); else td.textContent = v == null ? "" : v;
+    if (opciones.hora && opciones.hora.includes(c)) td.className = "hora";
+    tr.appendChild(td);
+  });
+  return tr;
+}
+function filaVacia(tbody, columnas, texto) {
+  tbody.innerHTML = "";
+  const tr = document.createElement("tr"), td = document.createElement("td");
+  td.colSpan = columnas; td.textContent = texto; tr.appendChild(td); tbody.appendChild(tr);
+}
+function celdaUbicacion(td, valor) {
+  if (valor && /^https:\/\/www\.google\.com\/maps\?q=-?[\d.]+,-?[\d.]+$/.test(valor)) {
+    const a = document.createElement("a");
+    a.href = valor; a.target = "_blank"; a.rel = "noopener noreferrer"; a.textContent = "ver";
+    td.appendChild(a);
+  } else td.textContent = valor || "";
+}
+
+// ======================= COMUNICACIÓN CON GOOGLE =======================
+// Todas las solicitudes van por POST con el token de sesión (nunca en el link)
+async function api(accion, datos = {}) {
+  const resp = await fetch(URL_API, {
+    method: "POST",
+    headers: { "Content-Type": "text/plain;charset=utf-8" },
+    body: JSON.stringify(Object.assign({ accion, token: sesion && sesion.token }, datos))
+  });
+  const r = await resp.json();
+  if (r && r.error === "sesion") {
+    cerrarSesionLocal();
+    mostrarLogin("🔒 " + (r.mensaje || "Tu sesión venció.") + (estado ? " Tu jornada sigue guardada en este celular." : ""));
+    throw new Error("sesion");
+  }
+  return r;
+}
+
+// ======================= SESIÓN =======================
+function cerrarSesionLocal() { sesion = null; borrar(CLAVE_SESION); }
+
+async function salir() {
+  if (estado && !finalizada() && !confirm("Tienes una jornada en curso. Quedará guardada en este celular, pero no se podrá enviar hasta que vuelvas a entrar. ¿Cerrar sesión?")) return;
+  try { await api("cerrar_sesion"); } catch (e) {}
+  cerrarSesionLocal();
+  mostrarLogin("");
+}
+
+function cambiarModoLogin(modo) {
+  modoLogin = modo;
+  $("tabTecnico").classList.toggle("activa", modo === "tecnico");
+  $("tabGerente").classList.toggle("activa", modo === "gerente");
+  mostrar("lblCampoUsuario", modo === "tecnico");
+  mostrar("lblCampoGerente", modo === "gerente");
+  mostrar("bloqueApp", modo === "gerente");                 // gerentes: Microsoft Authenticator
+  mostrar("btnPedirCodigo", modo === "tecnico");            // técnicos: código por correo
+  $("errorLogin").textContent = "";
+}
+
+async function cargarListaTecnicos() {
+  try {
+    const r = await api("lista_tecnicos");
+    tecnicosLista = r.tecnicos || [];
+    const dl = $("listaTecnicos");
+    dl.innerHTML = "";
+    tecnicosLista.forEach(t => { const o = document.createElement("option"); o.value = t.nombre; dl.appendChild(o); });
+  } catch (e) {}
+}
+
+async function pedirCodigo() {
+  $("errorLogin").textContent = "";
+  if (modoLogin === "tecnico") {
+    const nombre = $("loginNombre").value.trim().toLowerCase();
+    const t = tecnicosLista.find(x => x.nombre.toLowerCase() === nombre);
+    if (!t) { $("errorLogin").textContent = "Elige tu nombre de la lista."; return; }
+    usuarioLogin = t.usuario;
+  } else {
+    usuarioLogin = $("loginUsuario").value.trim();
+    if (!usuarioLogin) { $("errorLogin").textContent = "Escribe tu usuario."; return; }
+  }
+  $("btnPedirCodigo").disabled = true;
+  try {
+    const r = await api("pedir_codigo", { usuario: usuarioLogin });
+    if (!r.ok) { $("errorLogin").textContent = r.mensaje; if (r.espera) cuentaRegresiva($("btnPedirCodigo"), r.espera); return; }
+    $("infoCodigo").textContent = r.mensaje;
+    mostrar("pasoUsuario", false);
+    mostrar("pasoCodigo", true);
+    $("loginCodigo").value = "";
+    $("loginCodigo").focus();
+  } catch (e) {
+    $("errorLogin").textContent = "Sin conexión. Intenta de nuevo.";
+  } finally {
+    if (!$("btnPedirCodigo").textContent.startsWith("Espera")) $("btnPedirCodigo").disabled = false;
+  }
+}
+
+// Desactiva el botón mostrando cuántos segundos faltan para pedir otro código
+function cuentaRegresiva(boton, segundos) {
+  const texto = boton.dataset.texto || boton.textContent;
+  boton.dataset.texto = texto;
+  boton.disabled = true;
+  const tic = () => {
+    if (segundos <= 0) { boton.disabled = false; boton.textContent = texto; return; }
+    boton.textContent = `Espera ${segundos} s`;
+    segundos--;
+    setTimeout(tic, 1000);
+  };
+  tic();
+}
+
+async function entrar() {
+  const codigo = $("loginCodigo").value.trim();
+  if (!/^\d{6}$/.test(codigo)) { $("errorLogin").textContent = "El código tiene 6 dígitos."; return; }
+  $("btnEntrar").disabled = true;
+  try {
+    const r = await api("verificar_codigo", { usuario: usuarioLogin, codigo });
+    if (!r.ok) { $("errorLogin").textContent = r.mensaje; return; }
+    if (r.requiere_autenticador) { iniciarEnrolamiento(r.token); return; }
+    sesion = { token: r.token, usuario: r.usuario, nombre: r.nombre, rol: r.rol, empleado: r.empleado, exp: r.exp };
+    escribir(CLAVE_SESION, sesion);
+    $("errorLogin").textContent = "";
+    iniciarSegunRol();
+  } catch (e) {
+    $("errorLogin").textContent = "Sin conexión. Intenta de nuevo.";
+  } finally {
+    $("btnEntrar").disabled = false;
+  }
+}
+
+// ---------- Gerentes: entrar con Microsoft Authenticator ----------
+async function entrarConApp() {
+  const usuario = $("loginUsuario").value.trim(), codigo = $("loginApp").value.trim();
+  if (!usuario) { $("errorLogin").textContent = "Escribe tu usuario."; return; }
+  if (!/^\d{6}$/.test(codigo)) { $("errorLogin").textContent = "El código de la app tiene 6 dígitos."; return; }
+  $("btnEntrarApp").disabled = true;
+  try {
+    const r = await api("entrar_autenticador", { usuario, codigo });
+    if (!r.ok) { $("errorLogin").textContent = r.mensaje; return; }
+    guardarYEntrar(r);
+  } catch (e) { $("errorLogin").textContent = "Sin conexión. Intenta de nuevo."; }
+  finally { $("btnEntrarApp").disabled = false; }
+}
+
+function guardarYEntrar(r) {
+  sesion = { token: r.token, usuario: r.usuario, nombre: r.nombre, rol: r.rol, empleado: r.empleado, exp: r.exp };
+  escribir(CLAVE_SESION, sesion);
+  $("errorLogin").textContent = "";
+  $("loginApp").value = "";
+  iniciarSegunRol();
+}
+
+// ---------- Gerentes: vincular la app (una sola vez) ----------
+let tokenEnrolar = null;
+async function iniciarEnrolamiento(token) {
+  tokenEnrolar = token;
+  mostrar("pantallaLogin", false);
+  mostrar("pantallaEnrolar", true);
+  $("errorEnrolar").textContent = "";
+  try {
+    const r = await api("totp_iniciar", { token });
+    if (!r.ok) { $("errorEnrolar").textContent = r.mensaje || "No se pudo iniciar."; return; }
+    $("claveApp").textContent = r.secreto.replace(/(.{4})/g, "$1 ").trim();
+    if (window.qrcode) {
+      const qr = qrcode(0, "M");
+      qr.addData(r.uri);
+      qr.make();
+      $("qrApp").src = qr.createDataURL(6, 2);
+    } else {
+      mostrar("qrApp", false);
+    }
+    $("codigoEnrolar").focus();
+  } catch (e) { $("errorEnrolar").textContent = "Sin conexión. Intenta de nuevo."; }
+}
+
+async function confirmarEnrolamiento() {
+  const codigo = $("codigoEnrolar").value.trim();
+  if (!/^\d{6}$/.test(codigo)) { $("errorEnrolar").textContent = "El código de la app tiene 6 dígitos."; return; }
+  $("btnConfirmarApp").disabled = true;
+  try {
+    const r = await api("totp_confirmar", { token: tokenEnrolar, codigo });
+    if (!r.ok) { $("errorEnrolar").textContent = r.mensaje; return; }
+    tokenEnrolar = null;
+    $("qrApp").removeAttribute("src");
+    $("claveApp").textContent = "";
+    mostrar("pantallaEnrolar", false);
+    guardarYEntrar(r);
+  } catch (e) { $("errorEnrolar").textContent = "Sin conexión. Intenta de nuevo."; }
+  finally { $("btnConfirmarApp").disabled = false; }
+}
+
+function mostrarLogin(mensaje) {
+  ["barraUsuario", "pantallaInicio", "pantallaJornada", "cardMisJornadas", "pantallaGerente"].forEach(id => mostrar(id, false));
+  mostrar("pantallaLogin", true);
+  mostrar("pasoUsuario", true);
+  mostrar("pasoCodigo", false);
+  mostrar("pantallaEnrolar", false);
+  cambiarModoLogin(modoLogin);
+  $("errorLogin").textContent = mensaje || "";
+  cargarListaTecnicos();
+}
+
+function iniciarSegunRol() {
+  mostrar("pantallaLogin", false);
+  mostrar("barraUsuario", true);
+  $("lblUsuario").textContent = sesion.nombre;
+  $("lblRol").textContent = `(${sesion.rol === "gerente" ? "Gerente" : "Técnico"} ${sesion.empleado || ""})`;
+
+  if (sesion.rol === "gerente") {
+    mostrar("pantallaGerente", true);
+    cargarPanelGerente();
+    return;
+  }
+  // Técnico
+  mostrar("cardMisJornadas", true);
+  cargarMisJornadas();
+  if (estado && estado.usuario && estado.usuario !== sesion.usuario) {
+    mostrar("pantallaInicio", true);
+    $("errorInicio").textContent = `Este celular tiene una jornada pendiente de otra persona (${estado.nombre}). ` +
+      `Debe entrar esa persona para terminarla y enviarla.`;
+    $("btnIniciar").disabled = true;
+    return;
+  }
+  $("btnIniciar").disabled = false;
+  if (estado) {
+    estado.usuario = estado.usuario || sesion.usuario;
+    estado.nombre = estado.nombre || sesion.nombre;
+    mostrarJornada();
+    if (finalizada()) enviar();
+  } else {
+    mostrar("pantallaInicio", true);
+  }
+}
+
+// ======================= ESTADO DE LA JORNADA =======================
+const pasoActual  = () => Object.keys(estado.marcas).length;
+const tramoDe     = (idPaso) => TRAMOS.find(t => t.ini === idPaso || t.fin === idPaso);
+const ultimaPausa = () => estado.pausas[estado.pausas.length - 1];
+const enPausa     = () => !!(ultimaPausa() && !ultimaPausa().fin);
+const finalizada  = () => pasoActual() === PASOS.length || !!estado.cierre;
+
+function pausaEntre(a, b) {
+  return estado.pausas.reduce((suma, p) => suma + Math.max(0, Math.min(b, p.fin || Date.now()) - Math.max(a, p.ini)), 0);
+}
+const neto = (a, b) => (b - a) - pausaEntre(a, b);
+
+// ======================= UBICACIÓN =======================
+function obtenerUbicacion() {
+  return new Promise(resolver => {
+    if (!navigator.geolocation) return resolver("no soportado");
+    navigator.geolocation.getCurrentPosition(
+      p => resolver(`https://www.google.com/maps?q=${p.coords.latitude.toFixed(6)},${p.coords.longitude.toFixed(6)}`),
+      err => resolver(err.code === 1 ? "sin permiso" : "no disponible"),
+      { enableHighAccuracy: true, timeout: 15000, maximumAge: 0 }
+    );
+  });
+}
+function registrarUbicacion(guardar) {
+  const promesa = obtenerUbicacion().then(valor => { guardar(valor); guardarLocal(); dibujar(); return valor; });
+  pendientes.push(promesa);
+  return promesa;
+}
+
+// ======================= REPORTE EN VIVO =======================
+function textoEstadoActual() {
+  if (estado.cierre) return "⛔ Cerrada anticipada";
+  if (enPausa()) return "⏸ En pausa: " + ultimaPausa().motivo;
+  const i = pasoActual();
+  return i === 0 ? "Sin iniciar" : PASOS[i - 1].estado;
+}
+async function reportarEstado(accion, promesaUbicacion, tipoEvento) {
+  const ubic = await promesaUbicacion;
+  const datos = {
+    id: estado.id, llamada_servicio: estado.llamada, fecha: estado.fecha,
+    estado: textoEstadoActual(), ultima_accion: accion, evento: accion, tipo_evento: tipoEvento || "otro",
+    hora: hora24(Date.now()), ts: Date.now(),
+    ubic: (ubic && ubic.startsWith("https://")) ? ubic : (ubic || "no disponible")
+  };
+  const c = /q=(-?[\d.]+),(-?[\d.]+)/.exec(datos.ubic);
+  if (c) { datos.lat = c[1]; datos.lng = c[2]; }
+  try { await api("estado", datos); } catch (e) { /* sin conexión: la jornada completa se envía igual al final */ }
+}
+
+// ======================= RASTREO (solo traslados) =======================
+let ultimoRastreo = 0, rastreando = false, wakeLock = null;
+const jornadaActiva = () => !!estado && !!sesion && pasoActual() > 0 && !finalizada();
+function enTraslado() {
+  if (!jornadaActiva() || enPausa()) return false;
+  const ultimo = PASOS[pasoActual() - 1].id;
+  return ultimo === "ida_1" || ultimo === "vuelta_1";
+}
+async function rastrear(forzar) {
+  if (!enTraslado() || rastreando) return;
+  if (!forzar && Date.now() - ultimoRastreo < RASTREO_TRASLADO_MS) return;
+  rastreando = true;
+  ultimoRastreo = Date.now();
+  const pos = await new Promise(res => {
+    if (!navigator.geolocation) return res(null);
+    navigator.geolocation.getCurrentPosition(p => res(p.coords), () => res(null),
+      { enableHighAccuracy: true, timeout: 20000, maximumAge: 30000 });
+  });
+  if (pos && enTraslado()) {
+    try {
+      await api("ubicacion", {
+        id: estado.id, llamada_servicio: estado.llamada, fecha: estado.fecha,
+        estado: textoEstadoActual(), evento: "Rastreo", hora: hora24(Date.now()), ts: Date.now(),
+        lat: pos.latitude.toFixed(6), lng: pos.longitude.toFixed(6), precision: Math.round(pos.accuracy)
+      });
+    } catch (e) {}
+  }
+  rastreando = false;
+  dibujarInfoRastreo(pos);
+}
+async function actualizarWakeLock() {
+  const debe = enTraslado() && document.visibilityState === "visible";
+  try {
+    if (debe && !wakeLock && "wakeLock" in navigator) {
+      wakeLock = await navigator.wakeLock.request("screen");
+      wakeLock.addEventListener("release", () => { wakeLock = null; });
+    } else if (!debe && wakeLock) { await wakeLock.release(); wakeLock = null; }
+  } catch (e) {}
+}
+function dibujarInfoRastreo(pos) {
+  const info = $("infoRastreo");
+  if (!enTraslado()) { info.textContent = ""; return; }
+  const pantalla = wakeLock ? " · 🔆 pantalla encendida" : " · ⚠️ no bloquees el celular";
+  const ultimo = ultimoRastreo ? ` · último envío ${hora24(ultimoRastreo)}` : "";
+  info.textContent = `📡 Rastreo de traslado activo (cada 1 min)${ultimo}${pantalla}${pos === null ? " · ⚠️ sin GPS" : ""}`;
+}
+
+// ======================= VENTANA MODAL =======================
+// opciones: { titulo, texto: true/false, campo: { placeholder, numerico } }
+function pedirDatos(op) {
+  return new Promise(resolver => {
+    $("modalTitulo").textContent = op.titulo;
+    $("modalTexto").value = ""; mostrar("modalTexto", !!op.texto);
+    $("modalCampo").value = ""; mostrar("modalCampo", !!op.campo);
+    if (op.campo) {
+      $("modalCampo").placeholder = op.campo.placeholder || "";
+      $("modalCampo").inputMode = op.campo.numerico ? "numeric" : "text";
+    }
+    $("modalError").textContent = "";
+    mostrar("modal", true);
+    (op.texto ? $("modalTexto") : $("modalCampo")).focus();
+    $("modalOk").onclick = () => {
+      const texto = $("modalTexto").value.trim(), campo = $("modalCampo").value.trim();
+      if (op.texto && texto.length < 5) { $("modalError").textContent = "Escribe una justificación (mínimo 5 caracteres)."; return; }
+      if (op.campo && !campo) { $("modalError").textContent = "Completa el campo."; return; }
+      mostrar("modal", false);
+      resolver({ texto, campo });
+    };
+    $("modalCancelar").onclick = () => { mostrar("modal", false); resolver(null); };
+  });
+}
+
+// ======================= ACCIONES DEL TÉCNICO =======================
+function iniciarJornada() {
+  const llamada = $("llamada").value.trim();
+  if (!/^\d{5}$/.test(llamada)) { $("errorInicio").textContent = "La llamada de servicio debe tener exactamente 5 dígitos."; $("llamada").focus(); return; }
+  estado = { id: nuevoId(), usuario: sesion.usuario, nombre: sesion.nombre, llamada, fecha: fechaHoy(),
+             marcas: {}, ubic: {}, pausas: [], cierre: null };
+  guardarLocal();
+  obtenerUbicacion();   // para que el navegador pida el permiso desde el inicio
+  mostrarJornada();
+}
+
+function marcar() {
+  if (finalizada() || enPausa()) return;
+  const id = PASOS[pasoActual()].id;
+  estado.marcas[id] = Date.now();
+  estado.ubic[id] = "obteniendo...";
+  guardarLocal();
+  dibujar();
+  reportarEstado(PASOS[pasoActual() - 1].etiqueta, registrarUbicacion(v => { if (estado.marcas[id]) estado.ubic[id] = v; }), "marca");
+  if (pasoActual() === PASOS.length) enviar();
+}
+
+async function alternarPausa() {
+  if (finalizada()) return;
+  if (enPausa()) {
+    const p = ultimaPausa();
+    p.fin = Date.now();
+    p.ubicFin = "obteniendo...";
+    reportarEstado("Reanudó", registrarUbicacion(v => p.ubicFin = v));
+  } else {
+    const r = await pedirDatos({ titulo: "¿Por qué se pausa?", texto: true });
+    if (!r) return;
+    const p = { ini: Date.now(), fin: null, motivo: r.texto, ubicIni: "obteniendo...", ubicFin: "" };
+    estado.pausas.push(p);
+    reportarEstado("Pausa", registrarUbicacion(v => p.ubicIni = v));
+  }
+  guardarLocal();
+  dibujar();
+}
+
+async function cerrarMarcaje() {
+  if (finalizada()) return;
+  const r = await pedirDatos({ titulo: "Motivo para cerrar el marcaje (los horarios que falten quedarán vacíos)", texto: true });
+  if (!r) return;
+  const ahora = Date.now();
+  if (enPausa()) ultimaPausa().fin = ahora;
+  estado.cierre = { hora: ahora, motivo: r.texto, ubic: "obteniendo..." };
+  reportarEstado("Cerró marcaje: " + r.texto, registrarUbicacion(v => estado.cierre.ubic = v), "cierre");
+  guardarLocal();
+  dibujar();
+  enviar();
+}
+
+// Borrar una marca: el gerente recibe un código en su correo y se lo da al técnico
+async function deshacer() {
+  const i = pasoActual();
+  if (i === 0 || enPausa() || finalizada()) return;
+  const paso = PASOS[i - 1];
+  const r = await pedirDatos({ titulo: `🔒 Borrar "${paso.etiqueta}" requiere autorización de un gerente. Escribe el motivo y el usuario del gerente:`,
+                               texto: true, campo: { placeholder: "Usuario del gerente (Nombre_id)" } });
+  if (!r) return;
+  $("mensaje").textContent = "Enviando solicitud al gerente...";
+  try {
+    const s = await api("solicitar_borrado", { gerente: r.campo, motivo: r.texto, id: estado.id, fecha: estado.fecha,
+                                              marca: paso.etiqueta, hora_marca: hora24(estado.marcas[paso.id]) });
+    if (!s.ok) { $("mensaje").textContent = "❌ " + s.mensaje; return; }
+    const c = await pedirDatos({ titulo: s.mensaje + (s.metodo === "autenticador" ? " Escríbelo aquí:" : " Pídele el código y escríbelo aquí:"),
+                                 campo: { placeholder: "Código de 6 dígitos", numerico: true } });
+    if (!c) { $("mensaje").textContent = "Borrado cancelado."; return; }
+    const v = await api("confirmar_borrado", { solicitud: s.solicitud, codigo: c.campo });
+    if (!v.ok) { $("mensaje").textContent = "❌ " + v.mensaje; return; }
+  } catch (e) {
+    if (e.message !== "sesion") $("mensaje").textContent = "❌ Se necesita internet para autorizar el borrado.";
+    return;
+  }
+  delete estado.marcas[paso.id];
+  delete estado.ubic[paso.id];
+  guardarLocal();
+  $("mensaje").textContent = `✅ Marca "${paso.etiqueta}" borrada con autorización del gerente.`;
+  dibujar();
+  reportarEstado("Borró marca (autorizado): " + paso.etiqueta, Promise.resolve("no disponible"));
+}
+
+// ======================= ENVÍO DE LA JORNADA =======================
+function armarRegistro() {
+  const m = estado.marcas;
+  const limpiarUbic = (u) => (!u || u === "obteniendo...") ? "no disponible" : u;
+  const finJornada = m.vuelta_2 || (estado.cierre && estado.cierre.hora);
+  const r = { id: estado.id, estado: estado.cierre ? "Cerrada anticipada" : "Completa",
+              llamada_servicio: estado.llamada, fecha: estado.fecha };
+  PASOS.forEach(p => {
+    r[p.id] = m[p.id] ? hora24(m[p.id]) : "";
+    r[p.id + "_ubic"] = m[p.id] ? limpiarUbic(estado.ubic[p.id]) : "";
+  });
+  const durMs = {};
+  TRAMOS.forEach(t => {
+    const fin = m[t.fin] || (estado.cierre ? estado.cierre.hora : null);
+    durMs[t.id] = (m[t.ini] && fin) ? neto(m[t.ini], fin) : null;
+    r[t.id] = durMs[t.id] === null ? "" : duracion(durMs[t.id]);
+  });
+  r.total_operacion = duracion((durMs.dur_ejec_a || 0) + (durMs.dur_ejec_b || 0));
+  r.total_pausas = duracion(estado.pausas.reduce((s, p) => s + ((p.fin || p.ini) - p.ini), 0));
+  r.total_jornada = (m.ida_1 && finJornada) ? duracion(finJornada - m.ida_1) : "";
+  r.pausas = estado.pausas.map(p =>
+    `${hora24(p.ini)}-${p.fin ? hora24(p.fin) : "?"} (${duracion((p.fin || p.ini) - p.ini)}) ${p.motivo} [${limpiarUbic(p.ubicIni)}]`).join(" ; ");
+  r.motivo_cierre = estado.cierre ? estado.cierre.motivo : "";
+  r.hora_cierre   = estado.cierre ? hora24(estado.cierre.hora) : "";
+  r.ubic_cierre   = estado.cierre ? limpiarUbic(estado.cierre.ubic) : "";
+  return r;
+}
+
+async function enviar() {
+  if (enviando || !sesion) return;
+  enviando = true;
+  const btn = $("btnMarcar");
+  btn.disabled = true;
+  $("mensaje").textContent = "Obteniendo ubicación y enviando...";
+  await Promise.all(pendientes);
+  const registro = armarRegistro();
+  try {
+    const r = await api("jornada", registro);
+    if (!r.ok) throw new Error(r.mensaje || "rechazado");
+    borrar(CLAVE_LOCAL);
+    $("mensaje").textContent = `✅ Jornada guardada (${registro.estado}). Operación: ${registro.total_operacion}`;
+    btn.textContent = "Nueva jornada";
+    btn.onclick = () => location.reload();
+    cargarMisJornadas();
+  } catch (err) {
+    if (err.message !== "sesion") {
+      $("mensaje").textContent = "❌ No se pudo enviar (" + (err.message === "Failed to fetch" ? "sin internet" : err.message) + "). Los datos siguen guardados en este celular.";
+      btn.textContent = "Reintentar envío";
+      btn.onclick = enviar;
+    }
+  }
+  btn.disabled = false;
+  enviando = false;
+}
+
+// ======================= PANTALLA DEL TÉCNICO =======================
+function mostrarJornada() {
+  mostrar("pantallaInicio", false);
+  mostrar("pantallaJornada", true);
+  $("lblLlamada").textContent = estado.llamada;
+  $("lblFecha").textContent = estado.fecha;
+  dibujar();
+}
+
+function dibujar() {
+  if (!estado || $("pantallaJornada").classList.contains("oculto")) return;
+  const i = pasoActual(), m = estado.marcas, fin = finalizada(), pausa = enPausa();
+
+  if (!fin) {
+    $("btnMarcar").textContent = pausa ? "En pausa..." : `Marcar: ${PASOS[i].etiqueta}`;
+    $("btnMarcar").onclick = marcar;
+    $("btnMarcar").disabled = pausa;
+  }
+  $("btnPausa").textContent = pausa ? "▶ Reanudar" : "⏸ Pausa";
+  $("btnPausa").classList.toggle("reanudar", pausa);
+  $("btnPausa").parentElement.classList.toggle("oculto", fin);
+  mostrar("btnDeshacer", !fin);
+  $("btnDeshacer").disabled = pausa || i === 0;
+
+  const tbody = $("tablaMarcas");
+  tbody.innerHTML = "";
+  PASOS.forEach((p, idx) => {
+    const t = tramoDe(p.id);
+    const dur = (t.fin === p.id && m[t.fin]) ? duracion(neto(m[t.ini], m[t.fin])) : "";
+    const tr = fila([`${p.etiqueta} — ${p.detalle}`, m[p.id] ? hora24(m[p.id]) : "--:--:--", dur, m[p.id] ? estado.ubic[p.id] : ""],
+                    { hora: [1], ubic: 3 });
+    if (idx === i && !fin) tr.className = "siguiente";
+    tbody.appendChild(tr);
+  });
+
+  mostrar("cardPausas", estado.pausas.length > 0);
+  const tp = $("tablaPausas");
+  tp.innerHTML = "";
+  estado.pausas.forEach(p => tp.appendChild(fila(
+    [hora24(p.ini), p.fin ? hora24(p.fin) : "en curso", p.fin ? duracion(p.fin - p.ini) : "", p.motivo], { hora: [0, 1] })));
+
+  actualizarCronometro();
+  actualizarWakeLock();
+  dibujarInfoRastreo();
+}
+
+function actualizarCronometro() {
+  if (!estado || $("pantallaJornada").classList.contains("oculto")) return;
+  const crono = $("cronometro"), etiqueta = $("tramoActual");
+  crono.classList.remove("excedido", "pausado");
+  if (estado.cierre) { etiqueta.textContent = "Marcaje cerrado: " + estado.cierre.motivo; crono.textContent = hora24(estado.cierre.hora); return; }
+  const i = pasoActual();
+  if (i >= PASOS.length) { etiqueta.textContent = "Jornada completa"; crono.textContent = duracion(estado.marcas.vuelta_2 - estado.marcas.ida_1); return; }
+  if (enPausa()) {
+    const p = ultimaPausa();
+    etiqueta.textContent = "⏸ En pausa: " + p.motivo;
+    crono.textContent = duracion(Date.now() - p.ini);
+    crono.classList.add("pausado");
+    return;
+  }
+  const t = tramoDe(PASOS[i].id);
+  if (t.fin !== PASOS[i].id) { etiqueta.textContent = `Siguiente: ${t.nombre}`; crono.textContent = "00:00:00"; return; }
+  const transcurrido = neto(estado.marcas[t.ini], Date.now());
+  if (t.cuentaRegresiva) {
+    const restante = MINUTOS_ALMUERZO * 60000 - transcurrido;
+    if (restante >= 0) { etiqueta.textContent = `${t.nombre} — tiempo restante`; crono.textContent = duracion(restante); }
+    else { etiqueta.textContent = `${t.nombre} — ¡tiempo excedido!`; crono.textContent = "+" + duracion(-restante); crono.classList.add("excedido"); }
+  } else {
+    etiqueta.textContent = `${t.nombre} en curso`;
+    crono.textContent = duracion(transcurrido);
+  }
+}
+
+async function cargarMisJornadas() {
+  const tbody = $("tablaMisJornadas");
+  try {
+    const r = await api("mis_datos");
+    if (!r.ok) return;
+    if (!r.jornadas.length) return filaVacia(tbody, 4, "Aún no tienes jornadas registradas");
+    tbody.innerHTML = "";
+    r.jornadas.slice().reverse().forEach(j => tbody.appendChild(fila([j.fecha, j.llamada_servicio, j.estado, j.total_operacion])));
+  } catch (e) { if (e.message !== "sesion") filaVacia(tbody, 4, "No se pudo cargar"); }
+}
+
+// ======================= PANTALLA DEL GERENTE =======================
+async function cargarPanelGerente() {
+  if (!sesion || sesion.rol !== "gerente") return;
+  try {
+    const r = await api("panel");
+    if (!r.ok) return;
+    const tc = $("tablaEnCurso");
+    if (!r.encurso.length) filaVacia(tc, 5, "Nadie ha iniciado jornada hoy");
+    else { tc.innerHTML = ""; r.encurso.slice().reverse().forEach(x => tc.appendChild(fila([x.nombre, x.estado, x.hora, x.ubic, x.alerta], { hora: [2], ubic: 3 }))); }
+    const th = $("tablaHistorial");
+    if (!r.jornadas.length) filaVacia(th, 6, "Sin registros");
+    else { th.innerHTML = ""; r.jornadas.slice().reverse().forEach(j => th.appendChild(fila([j.nombre, j.fecha, j.llamada_servicio, j.estado, j.total_operacion, j.alerta_hora]))); }
+  } catch (e) {}
+}
+
+// ======================= ARRANQUE =======================
+$("fechaHoy").textContent = fechaHoy();
+$("llamada").addEventListener("input", e => e.target.value = e.target.value.replace(/\D/g, "").slice(0, 5));
+$("loginCodigo").addEventListener("input", e => e.target.value = e.target.value.replace(/\D/g, "").slice(0, 6));
+$("loginCodigo").addEventListener("keydown", e => { if (e.key === "Enter") entrar(); });
+$("tabTecnico").onclick = () => cambiarModoLogin("tecnico");
+$("tabGerente").onclick = () => cambiarModoLogin("gerente");
+$("btnPedirCodigo").onclick = pedirCodigo;
+$("btnEntrarApp").onclick = entrarConApp;
+$("lnkPrimeraVez").onclick = () => { mostrar("bloqueApp", false); mostrar("btnPedirCodigo", true); $("errorLogin").textContent = ""; };
+$("btnConfirmarApp").onclick = confirmarEnrolamiento;
+["loginApp", "codigoEnrolar"].forEach(id => $(id).addEventListener("input", e => e.target.value = e.target.value.replace(/\D/g, "").slice(0, 6)));
+$("loginApp").addEventListener("keydown", e => { if (e.key === "Enter") entrarConApp(); });
+$("codigoEnrolar").addEventListener("keydown", e => { if (e.key === "Enter") confirmarEnrolamiento(); });
+$("btnEntrar").onclick = entrar;
+$("btnOtroCodigo").onclick = () => { mostrar("pasoCodigo", false); mostrar("pasoUsuario", true); $("errorLogin").textContent = ""; };
+$("btnSalir").onclick = salir;
+$("btnIniciar").onclick = iniciarJornada;
+$("btnPausa").onclick = alternarPausa;
+$("btnCerrar").onclick = cerrarMarcaje;
+$("btnDeshacer").onclick = deshacer;
+
+estado = leer(CLAVE_LOCAL);
+if (estado) {   // compatibilidad con jornadas guardadas por versiones anteriores
+  estado.ubic = estado.ubic || {};
+  estado.pausas = estado.pausas || [];
+  estado.cierre = estado.cierre || null;
+  estado.id = estado.id || nuevoId();
+  estado.llamada = estado.llamada || estado.numero || "";
+}
+sesion = leer(CLAVE_SESION);
+if (sesion && (!sesion.token || sesion.exp < Date.now())) { cerrarSesionLocal(); }
+if (sesion) iniciarSegunRol(); else mostrarLogin("");
+
+setInterval(actualizarCronometro, 1000);
+setInterval(() => rastrear(false), 15000);
+setInterval(cargarPanelGerente, 60000);
+document.addEventListener("visibilitychange", () => {
+  if (document.visibilityState === "visible") rastrear(true);
+  actualizarWakeLock();
+});
+</script>
+</body>
+</html>
