@@ -1,4 +1,5 @@
 <!DOCTYPE html>
+<!-- Registro de Horas · mapa.html · v10 · 2026-11-14 -->
 <html lang="es">
 <head>
 <meta charset="UTF-8">
@@ -52,7 +53,7 @@
 <body>
 
 <header>
-  <h1>🗺️ Técnicos en tiempo real</h1>
+  <h1>🗺️ Técnicos en tiempo real <span style="font-size:.7rem;font-weight:400;opacity:.7">v10 · 2026-11-14</span></h1>
   <label>Fecha <input type="date" id="fecha"></label>
   <label><input type="checkbox" id="verRecorridos" checked> Recorridos</label>
   <button id="btnTodos">Ver todos</button>
@@ -69,16 +70,10 @@
 <div id="login" class="oculto">
   <div class="caja">
     <b>🔒 Acceso de gerentes</b>
-    <div id="pasoUsuario">
-      <input id="usuario" placeholder="Usuario (Nombre_id)" autocomplete="username" autocapitalize="off" maxlength="60">
-      <button id="btnPedir">Enviar código a mi correo</button>
-    </div>
-    <div id="pasoCodigo" class="oculto">
-      <p id="infoCodigo" style="font-size:.85rem;color:#4b5563"></p>
-      <input id="codigo" inputmode="numeric" maxlength="6" placeholder="Código de 6 dígitos" autocomplete="one-time-code">
-      <button id="btnEntrar">Entrar</button>
-      <p><a href="#" id="lnkOtro" style="font-size:.85rem">Pedir otro código / cambiar usuario</a></p>
-    </div>
+    <input id="usuario" placeholder="Usuario (Nombre_id)" autocomplete="username" autocapitalize="off" maxlength="60">
+    <input id="codigo" inputmode="numeric" maxlength="6" placeholder="Código de Microsoft Authenticator" autocomplete="one-time-code">
+    <button id="btnEntrar">Entrar</button>
+    <p style="font-size:.8rem;color:#4b5563">¿Primera vez? Vincula Microsoft Authenticator desde la <a href="./">página principal</a> (pestaña Gerente).</p>
     <div id="loginError"></div>
   </div>
 </div>
@@ -95,10 +90,19 @@ const COLORES = ["#2563eb", "#dc2626", "#16a34a", "#9333ea", "#ea580c", "#0891b2
 const $ = (id) => document.getElementById(id);
 const dos = (n) => String(n).padStart(2, "0");
 function hoy() { const d = new Date(); return `${d.getFullYear()}-${dos(d.getMonth() + 1)}-${dos(d.getDate())}`; }
-// La sesión del gerente vive solo en esta pestaña (sessionStorage): al cerrarla, se cierra la sesión
-function leerSesion() { try { const s = JSON.parse(sessionStorage.getItem("sesionMapa")); return s && s.exp > Date.now() ? s : null; } catch (e) { return null; } }
-function guardarSesion(s) { try { s ? sessionStorage.setItem("sesionMapa", JSON.stringify(s)) : sessionStorage.removeItem("sesionMapa"); } catch (e) {} }
-try { localStorage.removeItem("claveMapa"); } catch (e) {}   // limpia la clave de la versión anterior
+// Sesión COMPARTIDA con index.html: si el gerente ya entró allá, aquí no se pide otro código
+const CLAVE_SESION = "sesionRH";
+function leerSesion() {
+  try { const s = JSON.parse(localStorage.getItem(CLAVE_SESION)); return s && s.token && s.rol === "gerente" && s.exp > Date.now() ? s : null; }
+  catch (e) { return null; }
+}
+function guardarSesion(s) {
+  try {
+    if (s) localStorage.setItem(CLAVE_SESION, JSON.stringify(s));
+    else if (leerSesion()) localStorage.removeItem(CLAVE_SESION);   // nunca borra la sesión de un técnico
+  } catch (e) {}
+}
+try { localStorage.removeItem("claveMapa"); sessionStorage.removeItem("sesionMapa"); } catch (e) {}   // restos de versiones anteriores
 
 async function api(accion, datos = {}) {
   const s = leerSesion();
@@ -113,8 +117,6 @@ function mostrarLogin(mensaje) {
   guardarSesion(null);
   $("btnSalir").classList.add("oculto");
   $("lblGerente").textContent = "";
-  $("pasoUsuario").classList.remove("oculto");
-  $("pasoCodigo").classList.add("oculto");
   $("loginError").textContent = mensaje || "";
   $("login").classList.remove("oculto");
 }
@@ -309,58 +311,26 @@ $("fecha").value = hoy();
 $("fecha").onchange = () => { primeraCarga = true; colorPorId = {}; cargar(); programarRefresco(); };
 $("verRecorridos").onchange = cargar;
 $("btnTodos").onclick = () => { if (window._limites && window._limites.length) mapa.fitBounds(window._limites, { padding: [40, 40], maxZoom: 15 }); };
-function cuentaRegresiva(boton, segundos) {
-  const texto = boton.dataset.texto || boton.textContent;
-  boton.dataset.texto = texto;
-  boton.disabled = true;
-  const tic = () => {
-    if (segundos <= 0) { boton.disabled = false; boton.textContent = texto; return; }
-    boton.textContent = `Espera ${segundos} s`;
-    segundos--;
-    setTimeout(tic, 1000);
-  };
-  tic();
-}
-
-$("btnPedir").onclick = async () => {
-  const usuario = $("usuario").value.trim();
-  if (!usuario) { $("loginError").textContent = "Escribe tu usuario."; return; }
-  $("btnPedir").disabled = true;
-  try {
-    const r = await api("pedir_codigo", { usuario });
-    if (!r.ok) { $("loginError").textContent = r.mensaje; if (r.espera) cuentaRegresiva($("btnPedir"), r.espera); return; }
-    $("infoCodigo").textContent = r.mensaje;
-    $("loginError").textContent = "";
-    $("pasoUsuario").classList.add("oculto");
-    $("pasoCodigo").classList.remove("oculto");
-    $("codigo").value = ""; $("codigo").focus();
-  } catch (e) { $("loginError").textContent = "Sin conexión. Intenta de nuevo."; }
-  finally { if (!$("btnPedir").textContent.startsWith("Espera")) $("btnPedir").disabled = false; }
-};
 $("btnEntrar").onclick = async () => {
-  const codigo = $("codigo").value.trim();
-  if (!/^\d{6}$/.test(codigo)) { $("loginError").textContent = "El código tiene 6 dígitos."; return; }
+  const usuario = $("usuario").value.trim(), codigo = $("codigo").value.trim();
+  if (!usuario) { $("loginError").textContent = "Escribe tu usuario."; return; }
+  if (!/^\d{6}$/.test(codigo)) { $("loginError").textContent = "El código de la app tiene 6 dígitos."; return; }
   $("btnEntrar").disabled = true;
   try {
-    const r = await api("verificar_codigo", { usuario: $("usuario").value.trim(), codigo });
+    const r = await api("entrar_autenticador", { usuario, codigo });
     if (!r.ok) { $("loginError").textContent = r.mensaje; return; }
-    if (r.rol !== "gerente") {
-      $("loginError").textContent = "El mapa es solo para gerentes.";
-      await api("cerrar_sesion", { token: r.token });
-      return;
-    }
-    guardarSesion({ token: r.token, nombre: r.nombre, exp: r.exp });
+    guardarSesion({ token: r.token, usuario: r.usuario, nombre: r.nombre, rol: r.rol, empleado: r.empleado, exp: r.exp });
     $("loginError").textContent = "";
+    $("codigo").value = "";
     $("login").classList.add("oculto");
     primeraCarga = true;
     cargar();
   } catch (e) { $("loginError").textContent = "Sin conexión. Intenta de nuevo."; }
   finally { $("btnEntrar").disabled = false; }
 };
-$("lnkOtro").onclick = (e) => { e.preventDefault(); $("pasoCodigo").classList.add("oculto"); $("pasoUsuario").classList.remove("oculto"); };
 $("codigo").addEventListener("input", e => e.target.value = e.target.value.replace(/\D/g, "").slice(0, 6));
 $("codigo").addEventListener("keydown", e => { if (e.key === "Enter") $("btnEntrar").click(); });
-$("usuario").addEventListener("keydown", e => { if (e.key === "Enter") $("btnPedir").click(); });
+$("usuario").addEventListener("keydown", e => { if (e.key === "Enter") $("codigo").focus(); });
 $("btnSalir").onclick = async () => { try { await api("cerrar_sesion"); } catch (e) {} mostrarLogin("Sesión cerrada."); };
 
 cargar();
