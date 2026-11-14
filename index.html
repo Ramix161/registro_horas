@@ -304,7 +304,7 @@ async function pedirCodigo() {
   $("btnPedirCodigo").disabled = true;
   try {
     const r = await api("pedir_codigo", { usuario: usuarioLogin });
-    if (!r.ok) { $("errorLogin").textContent = r.mensaje; return; }
+    if (!r.ok) { $("errorLogin").textContent = r.mensaje; if (r.espera) cuentaRegresiva($("btnPedirCodigo"), r.espera); return; }
     $("infoCodigo").textContent = r.mensaje;
     mostrar("pasoUsuario", false);
     mostrar("pasoCodigo", true);
@@ -313,8 +313,22 @@ async function pedirCodigo() {
   } catch (e) {
     $("errorLogin").textContent = "Sin conexión. Intenta de nuevo.";
   } finally {
-    $("btnPedirCodigo").disabled = false;
+    if (!$("btnPedirCodigo").textContent.startsWith("Espera")) $("btnPedirCodigo").disabled = false;
   }
+}
+
+// Desactiva el botón mostrando cuántos segundos faltan para pedir otro código
+function cuentaRegresiva(boton, segundos) {
+  const texto = boton.dataset.texto || boton.textContent;
+  boton.dataset.texto = texto;
+  boton.disabled = true;
+  const tic = () => {
+    if (segundos <= 0) { boton.disabled = false; boton.textContent = texto; return; }
+    boton.textContent = `Espera ${segundos} s`;
+    segundos--;
+    setTimeout(tic, 1000);
+  };
+  tic();
 }
 
 async function entrar() {
