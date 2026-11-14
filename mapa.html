@@ -2,7 +2,8 @@
 <html lang="es">
 <head>
 <meta charset="UTF-8">
-<meta name="referrer" content="no-referrer">
+<!-- OpenStreetMap exige saber desde qué sitio se piden los mapas: se envía solo el dominio, nunca la ruta -->
+<meta name="referrer" content="strict-origin-when-cross-origin">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Mapa de Técnicos en Tiempo Real</title>
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
@@ -137,8 +138,9 @@ function el(tag, clase, textoContenido) {
 
 // ======================= MAPA =======================
 const mapa = L.map("mapa").setView([14.6349, -90.5069], 8);      // vista inicial: Guatemala
-L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
+L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png", {
   maxZoom: 19,
+  referrerPolicy: "strict-origin-when-cross-origin",
   attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
 }).addTo(mapa);
 
