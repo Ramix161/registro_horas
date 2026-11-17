@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- Registro de Horas · index.html · v11 · 2026-11-16 -->
+<!-- Registro de Horas · index.html · v13 · 2026-11-17 -->
 <html lang="es">
 <head>
 <meta charset="UTF-8">
@@ -27,7 +27,7 @@
   .aviso-ubicacion ol { margin:6px 0 0; padding-left:20px; }
   .card { background:#fff; border-radius:10px; padding:16px; box-shadow:0 1px 3px #0002; margin-bottom:14px; }
   label { display:block; font-size:.9rem; margin-bottom:10px; }
-  input, textarea { width:100%; padding:10px; box-sizing:border-box; font-size:1rem; margin-top:4px; font-family:inherit; }
+  input, textarea, select { width:100%; padding:10px; box-sizing:border-box; font-size:1rem; margin-top:4px; font-family:inherit; }
   button { border:0; border-radius:8px; padding:12px 16px; font-size:1rem; cursor:pointer; }
   button:disabled { opacity:.45; cursor:not-allowed; }
   .btn-principal { width:100%; background:var(--primario-claro); color:#fff; font-size:1.15rem; padding:18px; margin-top:12px; }
@@ -201,12 +201,13 @@
   </div>
 </div>
 
-<p class="info" style="text-align:center;margin-top:20px">Versión v11 · 2026-11-16</p>
+<p class="info" style="text-align:center;margin-top:20px">Versión v13 · 2026-11-17</p>
 
 <!-- Ventana reutilizable para justificaciones y códigos -->
 <div id="modal" class="modal oculto">
   <div class="modal-caja">
     <b id="modalTitulo"></b>
+    <select id="modalLista" class="oculto" style="margin-top:10px"></select>
     <textarea id="modalTexto" rows="3" maxlength="300" placeholder="Escribe la justificación..."></textarea>
     <input id="modalCampo" autocomplete="off" maxlength="60" class="oculto">
     <div class="error" id="modalError"></div>
@@ -487,6 +488,7 @@ function iniciarSegunRol() {
   }
   // Técnico
   mostrar("cardMisJornadas", true);
+  cargarMotivos();
   cargarMisJornadas();
   if (estado && estado.usuario && estado.usuario !== sesion.usuario) {
     mostrar("pantallaInicio", true);
@@ -548,14 +550,14 @@ function textoEstadoActual() {
   const i = pasoActual();
   return i === 0 ? "Sin iniciar" : PASOS[i - 1].estado;
 }
-async function reportarEstado(accion, promesaUbicacion, tipoEvento) {
+async function reportarEstado(accion, promesaUbicacion, tipoEvento, extra) {
   const ubic = await promesaUbicacion;
-  const datos = {
+  const datos = Object.assign({}, extra || {}, {
     id: estado.id, llamada_servicio: estado.llamada, fecha: estado.fecha,
     estado: textoEstadoActual(), ultima_accion: accion, evento: accion, tipo_evento: tipoEvento || "otro",
     hora: hora24(Date.now()), ts: Date.now(),
     ubic: (ubic && ubic.startsWith("https://")) ? ubic : (ubic || "no disponible")
-  };
+  });
   const c = /q=(-?[\d.]+),(-?[\d.]+)/.exec(datos.ubic);
   if (c) { datos.lat = c[1]; datos.lng = c[2]; }
   try { await api("estado", datos); } catch (e) { /* sin conexión: la jornada completa se envía igual al final */ }
@@ -610,9 +612,65 @@ function dibujarInfoRastreo(pos) {
 
 // ======================= VENTANA MODAL =======================
 // opciones: { titulo, texto: true/false, campo: { placeholder, numerico } }
+// ======================= MOTIVOS (lista de la pestaña "Motivos") =======================
+// Respaldo por si el celular no tiene internet la primera vez (igual a la lista inicial de la hoja)
+const MOTIVOS_RESPALDO = {
+  pausa: ["Fui al baño", "Problema de lluvia", "Esperando repuestos o material", "Esperando al cliente o su autorización",
+          "Tráfico o bloqueo de carretera", "Hidratación o descanso", "Llamada o reunión con supervisor",
+          "Problema con el vehículo", "Carga de combustible", "Falta de herramienta",
+          "Condiciones inseguras en el sitio", "Emergencia médica"],
+  cierre: ["Cliente canceló o equipo no disponible", "Lluvia o clima peligroso", "Falta de repuestos",
+           "Acceso denegado al sitio", "Emergencia personal o médica", "Accidente o incidente",
+           "Problema con el vehículo", "Reasignado por supervisor", "Trabajo terminado antes de lo previsto"]
+};
+const OTRO = "__otro__";
+let motivos = leer("motivosRH") || MOTIVOS_RESPALDO;
+
+async function cargarMotivos() {
+  try {
+    const r = await api("motivos");
+    if (r.ok && Array.isArray(r.pausa) && Array.isArray(r.cierre)) { motivos = { pausa: r.pausa, cierre: r.cierre }; escribir("motivosRH", motivos); }
+  } catch (e) { /* sin internet: se usa la última lista guardada */ }
+}
+
+// Ventana con lista desplegable. Devuelve { motivo, detalle, esOtro, texto } o null si cancela.
+function pedirMotivo(tipo, titulo) {
+  return new Promise(resolver => {
+    const lista = $("modalLista"), detalle = $("modalTexto");
+    $("modalTitulo").textContent = titulo;
+    lista.innerHTML = "";
+    const agregar = (valor, etiqueta) => { const o = document.createElement("option"); o.value = valor; o.textContent = etiqueta; lista.appendChild(o); };
+    agregar("", "— Elige un motivo —");
+    (motivos[tipo] || []).forEach(m => agregar(m, m));
+    agregar(OTRO, "Otro (especificar)");
+    const actualizar = () => {
+      detalle.placeholder = lista.value === OTRO ? "Describe el motivo (obligatorio)" : "Detalle (opcional)";
+    };
+    lista.onchange = actualizar;
+    lista.value = ""; detalle.value = ""; actualizar();
+    mostrar("modalLista", true); mostrar("modalTexto", true); mostrar("modalCampo", false);
+    $("modalError").textContent = "";
+    mostrar("modal", true);
+    lista.focus();
+    $("modalOk").onclick = () => {
+      const elegido = lista.value, texto = detalle.value.trim();
+      if (!elegido) { $("modalError").textContent = "Elige un motivo de la lista."; return; }
+      if (elegido === OTRO && texto.length < 5) { $("modalError").textContent = "Describe el motivo (mínimo 5 caracteres)."; return; }
+      mostrar("modal", false);
+      const esOtro = elegido === OTRO;
+      const motivo = esOtro ? texto : elegido;
+      resolver({ motivo, detalle: esOtro ? "" : texto, esOtro,
+                 texto: esOtro ? "Otro: " + texto : (texto ? `${elegido} — ${texto}` : elegido) });
+    };
+    $("modalCancelar").onclick = () => { mostrar("modal", false); resolver(null); };
+  });
+}
+
 function pedirDatos(op) {
   return new Promise(resolver => {
     $("modalTitulo").textContent = op.titulo;
+    mostrar("modalLista", false);
+    $("modalTexto").placeholder = "Escribe la justificación...";
     $("modalTexto").value = ""; mostrar("modalTexto", !!op.texto);
     $("modalCampo").value = ""; mostrar("modalCampo", !!op.campo);
     if (op.campo) {
@@ -723,11 +781,12 @@ async function alternarPausa() {
     p.ubicFin = "obteniendo...";
     reportarEstado("Reanudó", registrarUbicacion(v => p.ubicFin = v));
   } else {
-    const r = await pedirDatos({ titulo: "¿Por qué se pausa?", texto: true });
+    const r = await pedirMotivo("pausa", "¿Por qué se pausa?");
     if (!r) return;
     const p = { ini: Date.now(), fin: null, motivo: r.texto, ubicIni: "obteniendo...", ubicFin: "" };
     estado.pausas.push(p);
-    reportarEstado("Pausa", registrarUbicacion(v => p.ubicIni = v));
+    reportarEstado("Pausa", registrarUbicacion(v => p.ubicIni = v), "otro",
+                   { motivo_tipo: "pausa", motivo: r.motivo, motivo_otro: r.esOtro });
   }
   guardarLocal();
   dibujar();
@@ -735,12 +794,13 @@ async function alternarPausa() {
 
 async function cerrarMarcaje() {
   if (finalizada()) return;
-  const r = await pedirDatos({ titulo: "Motivo para cerrar el marcaje (los horarios que falten quedarán vacíos)", texto: true });
+  const r = await pedirMotivo("cierre", "Motivo para cerrar el marcaje (los horarios que falten quedarán vacíos)");
   if (!r) return;
   const ahora = Date.now();
   if (enPausa()) ultimaPausa().fin = ahora;
   estado.cierre = { hora: ahora, motivo: r.texto, ubic: "obteniendo..." };
-  reportarEstado("Cerró marcaje: " + r.texto, registrarUbicacion(v => estado.cierre.ubic = v), "cierre");
+  reportarEstado("Cerró marcaje: " + r.texto, registrarUbicacion(v => estado.cierre.ubic = v), "cierre",
+                 { motivo_tipo: "cierre", motivo: r.motivo, motivo_otro: r.esOtro });
   guardarLocal();
   dibujar();
   enviar();
