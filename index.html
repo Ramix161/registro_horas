@@ -1,0 +1,1469 @@
+<!DOCTYPE html>
+<!-- Registro de Horas · index.html · v1.14.1 · 2026-11-22 -->
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="referrer" content="no-referrer">
+<title>Registro de Horas - Técnicos</title>
+<script src="https://unpkg.com/qrcode-generator@1.4.4/qrcode.js"
+        integrity="sha384-8FWZA6BGMXhsfO+BLtrJK0We6gg5o1JyO8xQm6peWDEUs17ACA5ziE/NIAkl9z2k" crossorigin="anonymous"></script>
+<style>
+  /* ===== COLORES DE LA EMPRESA: cambia solo estas líneas ===== */
+  :root {
+    --primario:       #111111;   /* COGUMA negro: encabezado, pestañas activas */
+    --marca:          #F6CE00;   /* COGUMA amarillo (tomado del logo) */
+    --primario-claro: #F6CE00;   /* botón principal */
+    --texto-boton:    #111111;   /* texto sobre el amarillo (negro = se lee bien) */
+    --acento:         #f59e0b;   /* pausa, detalles */
+    --fondo:          #f4f4ef;
+    --texto:          #1f2937;
+  }
+  body { font-family: system-ui, sans-serif; max-width: 680px; margin: 0 auto; padding: 12px; background:var(--fondo); color:var(--texto); }
+  h1 { font-size: 1.3rem; margin: 8px 0 14px; }
+  .encabezado { display:flex; align-items:center; gap:12px; background:var(--primario); color:#fff; border-radius:10px; padding:10px 14px; margin-bottom:14px; }
+  .encabezado h1 { margin:0; font-size:1.15rem; color:var(--marca); }
+  .encabezado img { height:40px; width:auto; background:#fff; border-radius:6px; padding:3px; }
+  .aviso-ubicacion { background:#fef2f2; border:2px solid #dc2626; color:#7f1d1d; border-radius:10px; padding:12px 14px; margin:10px 0; font-size:.9rem; }
+  .aviso-ubicacion b { color:#b91c1c; }
+  .aviso-ubicacion ol { margin:6px 0 0; padding-left:20px; }
+  .card { background:#fff; border-radius:10px; padding:16px; box-shadow:0 1px 3px #0002; margin-bottom:14px; }
+  label { display:block; font-size:.9rem; margin-bottom:10px; }
+  input, textarea, select { width:100%; padding:10px; box-sizing:border-box; font-size:1rem; margin-top:4px; font-family:inherit; }
+  button { border:0; border-radius:8px; padding:12px 16px; font-size:1rem; cursor:pointer; }
+  button:disabled { opacity:.45; cursor:not-allowed; }
+  .btn-principal { width:100%; background:var(--primario-claro); color:var(--texto-boton); font-weight:700; font-size:1.15rem; padding:18px; margin-top:12px; }
+  .fila-botones { display:flex; gap:8px; margin-top:10px; }
+  .fila-botones button { flex:1; }
+  .btn-pausa { background:var(--acento); color:#fff; }
+  .btn-pausa.reanudar { background:#16a34a; }
+  .btn-cerrar { background:#dc2626; color:#fff; }
+  .btn-secundario { background:#e5e7eb; color:#111; }
+  .btn-link { background:none; color:var(--primario); padding:6px 0; font-size:.9rem; text-decoration:underline; }
+  .oculto { display:none !important; }
+  .barra-usuario { display:flex; align-items:center; gap:8px; font-size:.9rem; margin-bottom:12px; }
+  .barra-usuario span { flex:1; }
+  .barra-usuario button { padding:6px 10px; font-size:.85rem; }
+  .pestanas { display:flex; gap:6px; margin-bottom:12px; }
+  .pestanas button { flex:1; background:#e5e7eb; }
+  .pestanas button.activa { background:var(--primario); color:var(--marca); }
+  /* ---- Técnico (sin cronómetros) ---- */
+  #actividadActual { font-size:1.35rem; font-weight:700; text-align:center; padding:14px; border:3px solid #16a34a; border-radius:12px; margin:6px 0 4px; }
+  .pregunta { font-size:1.25rem; font-weight:700; text-align:center; margin:16px 0 6px; }
+  .texto-paso { text-align:center; color:#374151; margin:12px 0 4px; }
+  .destacado { text-align:center; font-weight:800; color:#15803d; font-size:1.15rem; margin:12px 0 0; }
+  .btn-si { background:#16a34a; color:#fff; font-size:1.3rem; padding:18px; }
+  .btn-no { background:#6b7280; color:#fff; font-size:1.3rem; padding:18px; }
+  .btn-comida { background:#0891b2; color:#fff; }
+  .ancho { width:100%; margin-top:10px; }
+  .chico { padding:6px 10px; font-size:.85rem; }
+  .asignacion { background:#eff6ff; border-left:5px solid var(--primario-claro); }
+  .asignacion b { font-size:1.05rem; }
+  .aviso-asig { border:3px solid var(--primario-claro); }
+  .aviso-asig b { font-size:1.2rem; }
+  /* ---- Gerentes ---- */
+  .g-tec { border:1px solid #e5e7eb; border-radius:10px; padding:10px 12px; margin:8px 0; }
+  .g-cab { display:flex; justify-content:space-between; gap:8px; align-items:baseline; }
+  .g-estado { font-weight:700; margin:4px 0; }
+  .g-crono { font-variant-numeric: tabular-nums; color:#111; font-weight:600; }
+  .barra-dia { display:flex; height:12px; background:#f3f4f6; border-radius:6px; overflow:hidden; margin:6px 0 2px; }
+  .barra-dia span { display:block; height:100%; }
+  .b-verde { background:#16a34a; } .b-naranja { background:#f59e0b; } .b-rojo { background:#dc2626; }
+  .g-alertas { color:#b91c1c; font-size:.85rem; font-weight:600; }
+  .g-acciones { display:flex; gap:10px; align-items:center; margin-top:4px; font-size:.9rem; }
+  .fila-form { display:flex; gap:8px; } .fila-form > * { flex:1; }
+  table { width:100%; border-collapse:collapse; font-size:.88rem; }
+  th, td { padding:7px 5px; border-bottom:1px solid #e5e7eb; text-align:left; vertical-align:top; }
+  td.hora { font-variant-numeric: tabular-nums; font-weight:600; white-space:nowrap; }
+  tr.siguiente { background:#eff6ff; }
+  #mensaje { margin-top:10px; font-weight:600; }
+  .info { font-size:.85rem; color:#6b7280; margin:4px 0; }
+  .error { color:#dc2626; font-size:.85rem; min-height:1.1em; }
+  .exito { color:#15803d; font-size:.85rem; }
+  .modal { position:fixed; inset:0; background:#0007; display:flex; align-items:center; justify-content:center; padding:16px; z-index:10; }
+  .modal-caja { background:#fff; border-radius:10px; padding:18px; width:100%; max-width:440px; }
+</style>
+</head>
+<body>
+<div class="encabezado">
+  <!-- Logo: sube un archivo "logo.png" al repositorio. Si no existe, simplemente no se muestra. -->
+  <img src="logo.png" alt="Logo" onerror="this.remove()">
+  <h1>⏱ Registro de Horas de Operación</h1>
+</div>
+
+<!-- ============ INICIO DE SESIÓN ============ -->
+<div id="pantallaLogin" class="card oculto">
+  <div class="pestanas">
+    <button id="tabTecnico" class="activa">Técnico</button>
+    <button id="tabGerente">Gerente</button>
+  </div>
+
+  <div id="pasoUsuario">
+    <label id="lblCampoUsuario">Tu nombre
+      <input id="loginNombre" list="listaTecnicos" placeholder="Empieza a escribir tu nombre..." autocomplete="off" maxlength="80">
+      <datalist id="listaTecnicos"></datalist>
+    </label>
+    <label id="lblCampoGerente" class="oculto">Usuario de gerente
+      <input id="loginUsuario" placeholder="Nombre_id" autocomplete="username" maxlength="60" autocapitalize="off">
+    </label>
+    <div id="bloqueApp" class="oculto">
+      <label>Código de Microsoft Authenticator
+        <input id="loginApp" inputmode="numeric" maxlength="6" placeholder="000000" autocomplete="one-time-code">
+      </label>
+      <button class="btn-principal" id="btnEntrarApp">Entrar</button>
+      <button class="btn-link" id="lnkPrimeraVez">Primera vez (o celular nuevo): recibir código por correo</button>
+    </div>
+    <button class="btn-principal" id="btnPedirCodigo">Enviar código a mi correo</button>
+  </div>
+
+  <div id="pasoCodigo" class="oculto">
+    <p class="info" id="infoCodigo"></p>
+    <label>Código de 6 dígitos
+      <input id="loginCodigo" inputmode="numeric" maxlength="6" autocomplete="one-time-code" placeholder="000000">
+    </label>
+    <button class="btn-principal" id="btnEntrar">Entrar</button>
+    <button class="btn-link" id="btnOtroCodigo">Pedir otro código / cambiar usuario</button>
+  </div>
+  <div class="error" id="errorLogin"></div>
+</div>
+
+<!-- ============ GERENTE: vincular Microsoft Authenticator ============ -->
+<div id="pantallaEnrolar" class="card oculto">
+  <b>🔐 Vincula Microsoft Authenticator</b>
+  <p class="info">Solo se hace una vez. Desde mañana entrarás con el código de la app, sin correos.</p>
+  <ol class="info" style="padding-left:18px">
+    <li>Abre <b>Microsoft Authenticator</b> en tu celular → <b>+</b> → <b>Otra cuenta (Google, Facebook, etc.)</b>.</li>
+    <li>Escanea este código QR. Si no puedes, elige "Escribir código manualmente" y copia la clave de abajo.</li>
+    <li>Escribe el código de 6 dígitos que aparece en la app.</li>
+  </ol>
+  <div style="text-align:center"><img id="qrApp" alt="Código QR para Microsoft Authenticator" style="width:220px;height:220px;image-rendering:pixelated"></div>
+  <p class="info" style="text-align:center">Clave: <b id="claveApp" style="font-family:monospace;letter-spacing:1px;word-break:break-all"></b></p>
+  <label>Código de la app
+    <input id="codigoEnrolar" inputmode="numeric" maxlength="6" placeholder="000000" autocomplete="one-time-code">
+  </label>
+  <button class="btn-principal" id="btnConfirmarApp">Vincular y entrar</button>
+  <div class="error" id="errorEnrolar"></div>
+</div>
+
+<!-- Barra con el usuario que inició sesión -->
+<div id="barraUsuario" class="barra-usuario oculto">
+  <span>👤 <b id="lblUsuario"></b> <span class="info" id="lblRol"></span><br><span class="info" id="filaUnidad">🚚 <span id="lblUnidad"></span></span></span>
+  <button class="btn-secundario" id="btnSalir">Cerrar sesión</button>
+</div>
+
+<!-- ============ TÉCNICO: inicio de jornada ============ -->
+<div id="pantallaInicio" class="card oculto">
+  <b>¡Buen día!</b>
+  <p class="info">Al llegar, toca <b>Iniciar jornada</b>. Quedarás <b>esperando asignación</b> hasta que tu gerente te envíe trabajo.</p>
+  <div class="error" id="errorInicio"></div>
+  <div id="avisoUbicacionInicio" class="aviso-ubicacion oculto"></div>
+  <p class="info">📍 <b>La ubicación es obligatoria.</b> El celular te pedirá permiso: toca <b>Permitir</b>.</p>
+  <button class="btn-principal" id="btnIniciar">▶ Iniciar jornada</button>
+</div>
+
+<!-- ============ TÉCNICO: jornada (sin cronómetros ni horas) ============ -->
+<div id="pantallaJornada" class="oculto">
+  <div class="card">
+    <p class="info" style="text-align:center;margin:0">Estás en:</p>
+    <div id="actividadActual"></div>
+    <div id="zonaAccion"></div>
+    <div id="botonesSecundarios"></div>
+    <div id="mensaje"></div>
+    <div id="avisoUbicacionJornada" class="aviso-ubicacion oculto"></div>
+    <p class="info" id="infoRastreo"></p>
+    <p class="info" id="lblTerminadas"></p>
+  </div>
+  <div class="card asignacion oculto" id="cardAsignacion">
+    <span class="info">Tu asignación</span><br>
+    <b id="asigTipo"></b>
+    <p id="asigDetalle" style="margin:4px 0"></p>
+    <span class="info" id="asigDe"></span>
+  </div>
+</div>
+
+<!-- TÉCNICO: sus jornadas (sin horas) -->
+<div id="cardMisJornadas" class="card oculto">
+  <b>Mis últimas jornadas</b>
+  <table>
+    <thead><tr><th>Fecha</th><th>Estado</th><th>Asignaciones</th><th>Llamadas</th><th>Km</th></tr></thead>
+    <tbody id="tablaMisJornadas"></tbody>
+  </table>
+</div>
+
+<!-- ============ GERENTES ============ -->
+<div id="pantallaGerente" class="oculto">
+  <div class="card">
+    <b>📋 Asignar trabajo</b>
+    <label>Técnico <select id="gTecnico"></select></label>
+    <label>Tipo <select id="gTipo"></select></label>
+    <div class="fila-form">
+      <label id="gLblLlamada">Llamada de servicio <input id="gLlamada" inputmode="numeric" maxlength="5" placeholder="00000"></label>
+      <label>Detalle (opcional) <input id="gDetalle" maxlength="200" placeholder="Cliente, equipo, dirección..."></label>
+    </div>
+    <button class="btn-principal" id="btnAsignar" style="margin-top:4px">Asignar</button>
+    <div class="info" id="gMensaje"></div>
+    <p class="info">También puedes asignar escribiendo una fila en la pestaña <b>Asignaciones</b> de la hoja (nombre, tipo, llamada).</p>
+  </div>
+  <div class="card">
+    <b>👷 Técnicos hoy</b> <span class="info" id="gActualizado"></span>
+    <p style="margin:4px 0"><a href="mapa.html">🗺️ Abrir mapa en tiempo real</a></p>
+    <div id="gTecnicos"></div>
+  </div>
+  <div class="card">
+    <b>Asignaciones de hoy</b>
+    <table>
+      <thead><tr><th>Técnico</th><th>Trabajo</th><th>Estado</th><th>Asignó</th><th>Creada</th><th></th></tr></thead>
+      <tbody id="gAsignaciones"></tbody>
+    </table>
+  </div>
+  <div class="card">
+    <b>Jornadas recientes</b>
+    <table>
+      <thead><tr><th>Técnico</th><th>Fecha</th><th>Estado</th><th>🟢</th><th>🟠</th><th>🔴</th><th>Km</th><th>Verificación</th></tr></thead>
+      <tbody id="tablaHistorial"></tbody>
+    </table>
+  </div>
+</div>
+
+<p class="info" style="text-align:center;margin-top:20px">Versión v1.14.1 · 2026-11-22</p>
+
+<!-- Aviso de asignación nueva (técnico) -->
+<div id="modalAviso" class="modal oculto">
+  <div class="modal-caja aviso-asig">
+    <b id="avisoTitulo"></b>
+    <p class="info" id="avisoFecha"></p>
+    <p style="font-weight:700" id="avisoTipo"></p>
+    <p id="avisoDetalle"></p>
+    <p class="info" id="avisoNota"></p>
+    <button class="btn-principal" id="btnAceptarAviso">Entendido, comenzar</button>
+  </div>
+</div>
+
+<!-- Ventana reutilizable para justificaciones y códigos -->
+<div id="modal" class="modal oculto">
+  <div class="modal-caja">
+    <b id="modalTitulo"></b>
+    <select id="modalLista" class="oculto" style="margin-top:10px"></select>
+    <textarea id="modalTexto" rows="3" maxlength="300" placeholder="Escribe la justificación..."></textarea>
+    <input id="modalCampo" autocomplete="off" maxlength="60" class="oculto">
+    <div class="error" id="modalError"></div>
+    <div class="fila-botones">
+      <button class="btn-secundario" id="modalCancelar">Cancelar</button>
+      <button class="btn-principal" id="modalOk" style="margin-top:0;padding:12px">Confirmar</button>
+    </div>
+  </div>
+</div>
+
+<script>
+// ======================= CONFIGURACIÓN =======================
+const URL_API = "https://script.google.com/macros/s/AKfycbyjQOBh_bHY-DS5z3v3d3hRBQ4NVNUW7kE6VM-u97vy_dl4AvQLu3Ry8hDNU--djwgOaQ/exec";
+const VERSION = "v1.14.1 · 2026-11-22";
+const CLAVE_LOCAL = "jornadaV114";            // (la v13 usaba otra clave; no se mezclan)
+const CLAVE_SESION = "sesionRH";
+const RASTREO_TRASLADO_MS = 1 * 60 * 1000;    // GPS cada 1 minuto, SOLO durante los traslados
+const SONDEO_ASIGNACION_MS = 20 * 1000;       // cada 20 s el celular pregunta si hay asignación nueva
+const MINUTOS_COMIDA = 45;
+
+// Categorías de tiempo (iguales a Code.gs). grupo: verde productivo · naranja personal · rojo improductivo
+const CATEGORIAS = {
+  espera_asignacion:        { nombre: "Esperando asignación de trabajo",      grupo: "rojo",    icono: "⏳" },
+  entrenamiento:            { nombre: "Entrenamiento",                        grupo: "naranja", icono: "🎓" },
+  preparacion:              { nombre: "Preparación para la salida",           grupo: "rojo",    icono: "🧰" },
+  espera_firma:             { nombre: "Espera por firma de aceptación",       grupo: "rojo",    icono: "✍️" },
+  limpieza_unidad:          { nombre: "Limpieza y organización de la unidad", grupo: "rojo",    icono: "🧽" },
+  servicio_unidad:          { nombre: "Espera por servicio de la unidad",     grupo: "rojo",    icono: "🔩" },
+  espera_repuestos:         { nombre: "Esperando repuestos",                  grupo: "rojo",    icono: "📦" },
+  desplazamiento:           { nombre: "Desplazamiento",                       grupo: "verde",   icono: "🚗" },
+  espera_cliente:           { nombre: "Espera del cliente",                   grupo: "rojo",    icono: "🧍" },
+  orden_trabajo:            { nombre: "Tiempo en orden de trabajo",           grupo: "verde",   icono: "🛠️" },
+  recoger_herramientas:     { nombre: "Recoger herramientas",                 grupo: "verde",   icono: "🧹" },
+  traslado_repuestos:       { nombre: "Traslado de repuestos",                grupo: "rojo",    icono: "🚚" },
+  traslado_liquidaciones:   { nombre: "Traslado de liquidaciones",            grupo: "rojo",    icono: "🚚" },
+  traslado_cambio_vehiculo: { nombre: "Traslado por cambio de vehículo",      grupo: "rojo",    icono: "🚚" },
+  reportes:                 { nombre: "Realizando reportes",                  grupo: "rojo",    icono: "📝" },
+  comida:                   { nombre: "Comida",                               grupo: "naranja", icono: "🍽" },
+  pausa:                    { nombre: "Pausa",                                grupo: "naranja", icono: "⏸" },
+  retraso:                  { nombre: "Retraso",                              grupo: "naranja", icono: "⏰" },
+  ausencia:                 { nombre: "Ausencia",                             grupo: "naranja", icono: "🚫" }
+};
+const COLOR_GRUPO = { verde: "#16a34a", naranja: "#f59e0b", rojo: "#dc2626" };
+
+// Pasos de cada flujo. act "*" = la categoría del tipo de viaje corto.
+const PASOS = {
+  // ---- Llamada de servicio: preparación con 4 preguntas ("Sí" = necesito tiempo) ----
+  prep_firma:     { act: "preparacion", pregunta: "¿Estás esperando la firma de aceptación?", si: "firma", no: "prep_limpieza" },
+  firma:          { act: "espera_firma", texto: "Esperando la firma de aceptación", boton: "✅ Ya tengo la firma", sig: "prep_limpieza" },
+  prep_limpieza:  { act: "preparacion", pregunta: "¿Necesitas limpiar y organizar la unidad?", si: "limpieza", no: "prep_servicio" },
+  limpieza:       { act: "limpieza_unidad", texto: "Limpiando y organizando la unidad", boton: "✅ Terminé la limpieza", sig: "prep_servicio" },
+  prep_servicio:  { act: "preparacion", pregunta: "¿Le están dando servicio a tu unidad?", si: "servicio_u", no: "prep_repuestos" },
+  servicio_u:     { act: "servicio_unidad", texto: "Esperando que terminen el servicio de tu unidad", boton: "✅ Ya terminó el servicio de la unidad", sig: "prep_repuestos" },
+  prep_repuestos: { act: "preparacion", pregunta: "¿Estás esperando repuestos?", si: "repuestos", no: "listo" },
+  repuestos:      { act: "espera_repuestos", texto: "Esperando repuestos", boton: "✅ Ya tengo los repuestos", sig: "listo" },
+  listo:          { act: "preparacion", destacado: "✅ TODO LISTO, ESTÁS PREPARADO PARA SALIR.", texto: "Dale Iniciar cuando empieces a manejar.",
+                    boton: "🚗 Iniciar (Traslado ida_1)", sig: "ida", evento: "Traslado ida_1" },
+  ida:            { act: "desplazamiento", traslado: true, texto: "Manejando hacia el sitio", boton: "📍 Llegué al sitio (Traslado ida_2)", sig: "espera_cliente", evento: "Traslado ida_2" },
+  espera_cliente: { act: "espera_cliente", texto: "Esperando al cliente y el equipo", boton: "🛠️ Inicio la ejecución (Ejecución 1)", sig: "ejecucion", evento: "Ejecución 1" },
+  ejecucion:      { act: "orden_trabajo", texto: "Ejecutando la orden de trabajo", boton: "✅ Terminé la ejecución (Ejecución 2)", sig: "recoger", evento: "Ejecución 2" },
+  recoger:        { act: "recoger_herramientas", texto: "Recogiendo herramientas y utensilios", boton: "🚗 Salgo del sitio (Traslado vuelta_1)", sig: "vuelta", evento: "Traslado vuelta_1" },
+  vuelta:         { act: "desplazamiento", traslado: true, texto: "Manejando de regreso", boton: "🏁 Llegué (Traslado vuelta_2)", sig: null, evento: "Traslado vuelta_2" },
+  // ---- Viajes cortos (repuestos, liquidaciones, cambio de vehículo) ----
+  v_listo:        { act: "*", texto: "Cuando empieces a manejar, toca Iniciar.", boton: "🚗 Iniciar (Traslado ida_1)", sig: "v_ida", evento: "Traslado ida_1" },
+  v_ida:          { act: "*", traslado: true, texto: "Manejando hacia el destino", boton: "📍 Llegué al destino (Traslado ida_2)", sig: "v_destino", evento: "Traslado ida_2" },
+  v_destino:      { act: "*", texto: "En el destino", boton: "🚗 Regreso (Traslado vuelta_1)", sig: "v_vuelta", evento: "Traslado vuelta_1" },
+  v_vuelta:       { act: "*", traslado: true, texto: "Manejando de regreso", boton: "🏁 Llegué (Traslado vuelta_2)", sig: null, evento: "Traslado vuelta_2" },
+  // ---- Fin de jornada ----
+  reportes:       { act: "reportes", texto: "Realizando reportes finales", boton: "✅ Terminé los reportes y cierro mi jornada", fin: true }
+};
+
+let sesion = null;        // { token, usuario, nombre, rol, empleado, unidad, hora_entrada, exp }
+let estado = null;        // jornada del técnico (ver iniciarJornada)
+let pendientes = [];
+let tecnicosLista = [];
+let modoLogin = "tecnico";
+let usuarioLogin = "";
+let panel = null;         // últimos datos del panel de gerentes
+let desfaseServidor = 0;  // hora del servidor − hora de esta computadora (cronómetros del gerente)
+
+// ======================= UTILIDADES =======================
+const $ = (id) => document.getElementById(id);
+const dos = (n) => String(n).padStart(2, "0");
+const mostrar = (id, si) => $(id).classList.toggle("oculto", !si);
+
+function hora24(ms) { const d = new Date(ms); return `${dos(d.getHours())}:${dos(d.getMinutes())}:${dos(d.getSeconds())}`; }
+function duracion(ms) {
+  const s = Math.max(0, Math.floor(ms / 1000));
+  return `${dos(Math.floor(s / 3600))}:${dos(Math.floor(s % 3600 / 60))}:${dos(s % 60)}`;
+}
+function fechaHoy() { const d = new Date(); return `${d.getFullYear()}-${dos(d.getMonth() + 1)}-${dos(d.getDate())}`; }
+const nuevoId = () => Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
+
+function leer(clave)         { try { return JSON.parse(localStorage.getItem(clave)); } catch (e) { return null; } }
+function escribir(clave, v)  { try { localStorage.setItem(clave, JSON.stringify(v)); } catch (e) {} }
+function borrar(clave)       { try { localStorage.removeItem(clave); } catch (e) {} }
+
+function fila(valores, opciones = {}) {
+  const tr = document.createElement("tr");
+  valores.forEach((v, c) => {
+    const td = document.createElement("td");
+    if (opciones.ubic === c) celdaUbicacion(td, v); else td.textContent = v == null ? "" : v;
+    if (opciones.hora && opciones.hora.includes(c)) td.className = "hora";
+    tr.appendChild(td);
+  });
+  return tr;
+}
+function filaVacia(tbody, columnas, texto) {
+  tbody.innerHTML = "";
+  const tr = document.createElement("tr"), td = document.createElement("td");
+  td.colSpan = columnas; td.textContent = texto; tr.appendChild(td); tbody.appendChild(tr);
+}
+function celdaUbicacion(td, valor) {
+  if (valor && /^https:\/\/www\.google\.com\/maps\?q=-?[\d.]+,-?[\d.]+$/.test(valor)) {
+    const a = document.createElement("a");
+    a.href = valor; a.target = "_blank"; a.rel = "noopener noreferrer"; a.textContent = "ver";
+    td.appendChild(a);
+  } else td.textContent = valor || "";
+}
+
+// ======================= COMUNICACIÓN CON GOOGLE =======================
+// Todas las solicitudes van por POST con el token de sesión (nunca en el link)
+async function api(accion, datos = {}) {
+  const resp = await fetch(URL_API, {
+    method: "POST",
+    headers: { "Content-Type": "text/plain;charset=utf-8" },
+    body: JSON.stringify(Object.assign({ accion, token: sesion && sesion.token }, datos))
+  });
+  const r = await resp.json();
+  if (r && r.error === "sesion") {
+    cerrarSesionLocal();
+    mostrarLogin("🔒 " + (r.mensaje || "Tu sesión venció.") + (estado ? " Tu jornada sigue guardada en este celular." : ""));
+    throw new Error("sesion");
+  }
+  return r;
+}
+
+// ======================= SESIÓN =======================
+function cerrarSesionLocal() { sesion = null; borrar(CLAVE_SESION); }
+
+async function salir() {
+  if (estado && !estado.cerrando && !(await pedirSiNo("Tienes una jornada en curso. Quedará guardada en este celular, pero no se podrá enviar hasta que vuelvas a entrar. ¿Cerrar sesión?"))) return;
+  try { await api("cerrar_sesion"); } catch (e) {}
+  cerrarSesionLocal();
+  mostrarLogin("");
+}
+
+function cambiarModoLogin(modo) {
+  modoLogin = modo;
+  $("tabTecnico").classList.toggle("activa", modo === "tecnico");
+  $("tabGerente").classList.toggle("activa", modo === "gerente");
+  mostrar("lblCampoUsuario", modo === "tecnico");
+  mostrar("lblCampoGerente", modo === "gerente");
+  mostrar("bloqueApp", modo === "gerente");                 // gerentes: Microsoft Authenticator
+  mostrar("btnPedirCodigo", modo === "tecnico");            // técnicos: código por correo
+  $("errorLogin").textContent = "";
+}
+
+async function cargarListaTecnicos() {
+  try {
+    const r = await api("lista_tecnicos");
+    tecnicosLista = r.tecnicos || [];
+    const dl = $("listaTecnicos");
+    dl.innerHTML = "";
+    tecnicosLista.forEach(t => { const o = document.createElement("option"); o.value = t.nombre; dl.appendChild(o); });
+  } catch (e) {}
+}
+
+async function pedirCodigo() {
+  $("errorLogin").textContent = "";
+  if (modoLogin === "tecnico") {
+    const nombre = $("loginNombre").value.trim().toLowerCase();
+    const t = tecnicosLista.find(x => x.nombre.toLowerCase() === nombre);
+    if (!t) { $("errorLogin").textContent = "Elige tu nombre de la lista."; return; }
+    usuarioLogin = t.usuario;
+  } else {
+    usuarioLogin = $("loginUsuario").value.trim();
+    if (!usuarioLogin) { $("errorLogin").textContent = "Escribe tu usuario."; return; }
+  }
+  $("btnPedirCodigo").disabled = true;
+  try {
+    const r = await api("pedir_codigo", { usuario: usuarioLogin });
+    if (!r.ok) { $("errorLogin").textContent = r.mensaje; if (r.espera) cuentaRegresiva($("btnPedirCodigo"), r.espera); return; }
+    $("infoCodigo").textContent = r.mensaje;
+    mostrar("pasoUsuario", false);
+    mostrar("pasoCodigo", true);
+    $("loginCodigo").value = "";
+    $("loginCodigo").focus();
+  } catch (e) {
+    $("errorLogin").textContent = "Sin conexión. Intenta de nuevo.";
+  } finally {
+    if (!$("btnPedirCodigo").textContent.startsWith("Espera")) $("btnPedirCodigo").disabled = false;
+  }
+}
+
+// Desactiva el botón mostrando cuántos segundos faltan para pedir otro código
+function cuentaRegresiva(boton, segundos) {
+  const texto = boton.dataset.texto || boton.textContent;
+  boton.dataset.texto = texto;
+  boton.disabled = true;
+  const tic = () => {
+    if (segundos <= 0) { boton.disabled = false; boton.textContent = texto; return; }
+    boton.textContent = `Espera ${segundos} s`;
+    segundos--;
+    setTimeout(tic, 1000);
+  };
+  tic();
+}
+
+async function entrar() {
+  const codigo = $("loginCodigo").value.trim();
+  if (!/^\d{6}$/.test(codigo)) { $("errorLogin").textContent = "El código tiene 6 dígitos."; return; }
+  $("btnEntrar").disabled = true;
+  try {
+    const r = await api("verificar_codigo", { usuario: usuarioLogin, codigo });
+    if (!r.ok) { $("errorLogin").textContent = r.mensaje; return; }
+    if (r.requiere_autenticador) { iniciarEnrolamiento(r.token); return; }
+    sesion = { token: r.token, usuario: r.usuario, nombre: r.nombre, rol: r.rol, empleado: r.empleado,
+               unidad: r.unidad || "", hora_entrada: r.hora_entrada || "", exp: r.exp };
+    escribir(CLAVE_SESION, sesion);
+    $("errorLogin").textContent = "";
+    iniciarSegunRol();
+  } catch (e) {
+    $("errorLogin").textContent = "Sin conexión. Intenta de nuevo.";
+  } finally {
+    $("btnEntrar").disabled = false;
+  }
+}
+
+// ---------- Gerentes: entrar con Microsoft Authenticator ----------
+async function entrarConApp() {
+  const usuario = $("loginUsuario").value.trim(), codigo = $("loginApp").value.trim();
+  if (!usuario) { $("errorLogin").textContent = "Escribe tu usuario."; return; }
+  if (!/^\d{6}$/.test(codigo)) { $("errorLogin").textContent = "El código de la app tiene 6 dígitos."; return; }
+  $("btnEntrarApp").disabled = true;
+  try {
+    const r = await api("entrar_autenticador", { usuario, codigo });
+    if (!r.ok) { $("errorLogin").textContent = r.mensaje; return; }
+    guardarYEntrar(r);
+  } catch (e) { $("errorLogin").textContent = "Sin conexión. Intenta de nuevo."; }
+  finally { $("btnEntrarApp").disabled = false; }
+}
+
+function guardarYEntrar(r) {
+  sesion = { token: r.token, usuario: r.usuario, nombre: r.nombre, rol: r.rol, empleado: r.empleado,
+             unidad: r.unidad || "", hora_entrada: r.hora_entrada || "", exp: r.exp };
+  escribir(CLAVE_SESION, sesion);
+  $("errorLogin").textContent = "";
+  $("loginApp").value = "";
+  iniciarSegunRol();
+}
+
+// ---------- Gerentes: vincular la app (una sola vez) ----------
+let tokenEnrolar = null;
+async function iniciarEnrolamiento(token) {
+  tokenEnrolar = token;
+  mostrar("pantallaLogin", false);
+  mostrar("pantallaEnrolar", true);
+  $("errorEnrolar").textContent = "";
+  try {
+    const r = await api("totp_iniciar", { token });
+    if (!r.ok) { $("errorEnrolar").textContent = r.mensaje || "No se pudo iniciar."; return; }
+    $("claveApp").textContent = r.secreto.replace(/(.{4})/g, "$1 ").trim();
+    if (window.qrcode) {
+      const qr = qrcode(0, "M");
+      qr.addData(r.uri);
+      qr.make();
+      $("qrApp").src = qr.createDataURL(6, 2);
+    } else {
+      mostrar("qrApp", false);
+    }
+    $("codigoEnrolar").focus();
+  } catch (e) { $("errorEnrolar").textContent = "Sin conexión. Intenta de nuevo."; }
+}
+
+async function confirmarEnrolamiento() {
+  const codigo = $("codigoEnrolar").value.trim();
+  if (!/^\d{6}$/.test(codigo)) { $("errorEnrolar").textContent = "El código de la app tiene 6 dígitos."; return; }
+  $("btnConfirmarApp").disabled = true;
+  try {
+    const r = await api("totp_confirmar", { token: tokenEnrolar, codigo });
+    if (!r.ok) { $("errorEnrolar").textContent = r.mensaje; return; }
+    tokenEnrolar = null;
+    $("qrApp").removeAttribute("src");
+    $("claveApp").textContent = "";
+    mostrar("pantallaEnrolar", false);
+    guardarYEntrar(r);
+  } catch (e) { $("errorEnrolar").textContent = "Sin conexión. Intenta de nuevo."; }
+  finally { $("btnConfirmarApp").disabled = false; }
+}
+
+function mostrarLogin(mensaje) {
+  ["barraUsuario", "pantallaInicio", "pantallaJornada", "cardMisJornadas", "pantallaGerente"].forEach(id => mostrar(id, false));
+  mostrar("pantallaLogin", true);
+  mostrar("pasoUsuario", true);
+  mostrar("pasoCodigo", false);
+  mostrar("pantallaEnrolar", false);
+  cambiarModoLogin(modoLogin);
+  $("errorLogin").textContent = mensaje || "";
+  cargarListaTecnicos();
+}
+
+function iniciarSegunRol() {
+  mostrar("pantallaLogin", false);
+  mostrar("barraUsuario", true);
+  $("lblUsuario").textContent = sesion.nombre;
+  $("lblRol").textContent = `(${sesion.rol === "gerente" ? "Gerente" : "Técnico"} ${sesion.empleado || ""})`;
+  $("lblUnidad").textContent = sesion.rol === "tecnico" ? (sesion.unidad || "Sin unidad asignada") : "";
+  mostrar("filaUnidad", sesion.rol === "tecnico");
+
+  if (sesion.rol === "gerente") {
+    mostrar("pantallaGerente", true);
+    cargarPanelGerente();
+    cargarMotivos();
+    return;
+  }
+  // Técnico
+  mostrar("cardMisJornadas", true);
+  cargarMotivos();
+  cargarMisJornadas();
+  if (estado && estado.usuario !== sesion.usuario) {
+    mostrar("pantallaInicio", true);
+    $("errorInicio").textContent = `Este celular tiene una jornada pendiente de otra persona (${estado.nombre}). ` +
+      `Debe entrar esa persona para terminarla y enviarla.`;
+    $("btnIniciar").disabled = true;
+    return;
+  }
+  $("btnIniciar").disabled = false;
+  if (estado) {
+    mostrarJornada();
+    if (estado.cerrando && !estado.enviada) enviarJornada();
+    else if (estado.aviso) mostrarAvisoAsignacion();
+    else sondearAsignacion();
+  } else {
+    mostrar("pantallaInicio", true);
+  }
+}
+// ======================= UBICACIÓN =======================
+function obtenerUbicacion() {
+  return new Promise(resolver => {
+    if (!navigator.geolocation) return resolver("no soportado");
+    navigator.geolocation.getCurrentPosition(
+      p => resolver(`https://www.google.com/maps?q=${p.coords.latitude.toFixed(6)},${p.coords.longitude.toFixed(6)}`),
+      err => resolver(err.code === 1 ? "sin permiso" : "no disponible"),
+      { enableHighAccuracy: true, timeout: 15000, maximumAge: 0 }
+    );
+  });
+}
+function registrarUbicacion(guardar) {
+  const promesa = obtenerUbicacion().then(valor => {
+    guardar(valor); guardarLocal(); dibujar();
+    // Si a media jornada se bloquea la ubicación, se avisa en grande (las marcas se siguen guardando)
+    if (valor === "sin permiso") mostrarAvisoUbicacion("avisoUbicacionJornada", "denegado");
+    else if (valor && valor.startsWith("https://")) mostrarAvisoUbicacion("avisoUbicacionJornada", null);
+    return valor;
+  });
+  pendientes.push(promesa);
+  return promesa;
+}
+
+// ======================= VENTANA MODAL =======================
+// opciones: { titulo, texto: true/false, campo: { placeholder, numerico } }
+// ======================= MOTIVOS (lista de la pestaña "Motivos") =======================
+// Respaldo por si el celular no tiene internet la primera vez (igual a la lista inicial de la hoja)
+const MOTIVOS_RESPALDO = {
+  pausa: ["Fui al baño", "Problema de lluvia", "Esperando repuestos o material", "Esperando al cliente o su autorización",
+          "Tráfico o bloqueo de carretera", "Hidratación o descanso", "Llamada o reunión con supervisor",
+          "Problema con el vehículo", "Carga de combustible", "Falta de herramienta",
+          "Condiciones inseguras en el sitio", "Emergencia médica"],
+  cierre: ["Cliente canceló o equipo no disponible", "Lluvia o clima peligroso", "Falta de repuestos",
+           "Acceso denegado al sitio", "Emergencia personal o médica", "Accidente o incidente",
+           "Problema con el vehículo", "Reasignado por supervisor", "Trabajo terminado antes de lo previsto"]
+};
+const OTRO = "__otro__";
+let motivos = leer("motivosRH") || MOTIVOS_RESPALDO;
+
+async function cargarMotivos() {
+  try {
+    const r = await api("motivos");
+    if (r.ok && Array.isArray(r.pausa) && Array.isArray(r.cierre)) { motivos = { pausa: r.pausa, cierre: r.cierre }; escribir("motivosRH", motivos); }
+  } catch (e) { /* sin internet: se usa la última lista guardada */ }
+}
+
+// Ventana con lista desplegable. Devuelve { motivo, detalle, esOtro, texto } o null si cancela.
+function pedirMotivo(tipo, titulo) {
+  return new Promise(resolver => {
+    const lista = $("modalLista"), detalle = $("modalTexto");
+    $("modalTitulo").textContent = titulo;
+    lista.innerHTML = "";
+    const agregar = (valor, etiqueta) => { const o = document.createElement("option"); o.value = valor; o.textContent = etiqueta; lista.appendChild(o); };
+    agregar("", "— Elige un motivo —");
+    (motivos[tipo] || []).forEach(m => agregar(m, m));
+    agregar(OTRO, "Otro (especificar)");
+    const actualizar = () => {
+      detalle.placeholder = lista.value === OTRO ? "Describe el motivo (obligatorio)" : "Detalle (opcional)";
+    };
+    lista.onchange = actualizar;
+    lista.value = ""; detalle.value = ""; actualizar();
+    mostrar("modalLista", true); mostrar("modalTexto", true); mostrar("modalCampo", false);
+    $("modalError").textContent = "";
+    mostrar("modal", true);
+    lista.focus();
+    $("modalOk").onclick = () => {
+      const elegido = lista.value, texto = detalle.value.trim();
+      if (!elegido) { $("modalError").textContent = "Elige un motivo de la lista."; return; }
+      if (elegido === OTRO && texto.length < 5) { $("modalError").textContent = "Describe el motivo (mínimo 5 caracteres)."; return; }
+      mostrar("modal", false);
+      const esOtro = elegido === OTRO;
+      const motivo = esOtro ? texto : elegido;
+      resolver({ motivo, detalle: esOtro ? "" : texto, esOtro,
+                 texto: esOtro ? "Otro: " + texto : (texto ? `${elegido} — ${texto}` : elegido) });
+    };
+    $("modalCancelar").onclick = () => { mostrar("modal", false); resolver(null); };
+  });
+}
+
+function pedirDatos(op) {
+  return new Promise(resolver => {
+    $("modalTitulo").textContent = op.titulo;
+    mostrar("modalLista", false);
+    $("modalTexto").placeholder = "Escribe la justificación...";
+    $("modalTexto").value = ""; mostrar("modalTexto", !!op.texto);
+    $("modalCampo").value = ""; mostrar("modalCampo", !!op.campo);
+    if (op.campo) {
+      $("modalCampo").placeholder = op.campo.placeholder || "";
+      $("modalCampo").inputMode = op.campo.numerico ? "numeric" : "text";
+    }
+    $("modalError").textContent = "";
+    mostrar("modal", true);
+    (op.texto ? $("modalTexto") : $("modalCampo")).focus();
+    $("modalOk").onclick = () => {
+      const texto = $("modalTexto").value.trim(), campo = $("modalCampo").value.trim();
+      if (op.texto && texto.length < 5) { $("modalError").textContent = "Escribe una justificación (mínimo 5 caracteres)."; return; }
+      if (op.campo && !campo) { $("modalError").textContent = "Completa el campo."; return; }
+      mostrar("modal", false);
+      resolver({ texto, campo });
+    };
+    $("modalCancelar").onclick = () => { mostrar("modal", false); resolver(null); };
+  });
+}
+
+// ======================= UBICACIÓN OBLIGATORIA =======================
+// ---------- Ubicación obligatoria ----------
+const esIPhone = () => /iPhone|iPad|iPod/i.test(navigator.userAgent);
+const esNavegadorInterno = () => /FBAN|FBAV|Instagram|Line\/|WhatsApp|Outlook|GSA\//i.test(navigator.userAgent);
+
+// Intenta con GPS preciso y, si tarda, con la ubicación aproximada. Devuelve "ok", "denegado" o "sin_senal".
+function verificarUbicacion() {
+  const intentar = (alta, ms) => new Promise(res => {
+    if (!navigator.geolocation) return res("no_soportado");
+    navigator.geolocation.getCurrentPosition(() => res("ok"),
+      err => res(err.code === 1 ? "denegado" : "sin_senal"),
+      { enableHighAccuracy: alta, timeout: ms, maximumAge: 60000 });
+  });
+  return intentar(true, 12000).then(r => r === "sin_senal" ? intentar(false, 12000) : r);
+}
+
+function instruccionesUbicacion(motivo) {
+  const caja = document.createElement("div");
+  const titulo = document.createElement("b");
+  titulo.textContent = motivo === "denegado" ? "⚠️ La ubicación está bloqueada en este celular."
+    : motivo === "no_soportado" ? "⚠️ Este navegador no permite usar la ubicación."
+    : "⚠️ No se pudo obtener tu ubicación (sin señal de GPS).";
+  caja.appendChild(titulo);
+  const pasos = motivo === "sin_senal"
+    ? ["Activa la ubicación (GPS) del celular.", "Sal a un lugar abierto o cerca de una ventana.", "Vuelve a tocar \"Iniciar jornada\"."]
+    : esIPhone()
+      ? ["Ajustes → Privacidad y seguridad → Localización: actívala.",
+         "En esa misma lista: Safari Websites → \"Mientras se usa la app\" y activa \"Ubicación exacta\".",
+         "Ajustes → Apps → Safari → Ubicación → \"Preguntar\" o \"Permitir\".",
+         "En Safari, toca \"aA\" junto a la dirección → Ajustes del sitio web → Ubicación → Permitir.",
+         "Abre la página en Safari (no desde WhatsApp ni el correo) y vuelve a tocar \"Iniciar jornada\"."]
+      : ["Activa la ubicación del celular (desliza la barra de arriba → Ubicación).",
+         "En Chrome, toca el candado o ícono junto a la dirección → Permisos → Ubicación → Permitir.",
+         "Si no aparece: Ajustes → Apps → Chrome → Permisos → Ubicación → Permitir.",
+         "Abre la página en Chrome (no desde WhatsApp ni el correo) y vuelve a tocar \"Iniciar jornada\"."];
+  const ol = document.createElement("ol");
+  pasos.forEach(t => { const li = document.createElement("li"); li.textContent = t; ol.appendChild(li); });
+  caja.appendChild(ol);
+  return caja;
+}
+
+function mostrarAvisoUbicacion(id, motivo) {
+  const caja = $(id);
+  caja.innerHTML = "";
+  if (!motivo) { mostrar(id, false); return; }
+  caja.appendChild(instruccionesUbicacion(motivo));
+  mostrar(id, true);
+}
+
+
+async function actualizarWakeLock() {
+  const debe = enTraslado() && document.visibilityState === "visible";
+  try {
+    if (debe && !wakeLock && "wakeLock" in navigator) {
+      wakeLock = await navigator.wakeLock.request("screen");
+      wakeLock.addEventListener("release", () => { wakeLock = null; });
+    } else if (!debe && wakeLock) { await wakeLock.release(); wakeLock = null; }
+  } catch (e) {}
+}
+
+// ======================= JORNADA DEL TÉCNICO (v1.14) =======================
+/* estado = { v, id, usuario, nombre, unidad, fecha, n,
+     act:      { cod, ini, ubic, detalle, asig }   tramo de tiempo abierto (lo que hace AHORA)
+     segs:     [ tramos cerrados ]                  se envían al cerrarse y, por si acaso, al final
+     asig:     asignación actual o null             paso: clave de PASOS o null
+     interr:   null | { tipo: "comida"|"pausa", motivo, prev: { cod, paso }, avisado }
+     aviso:    asignación nueva que el técnico aún no confirma
+     historial:[ instantáneas para deshacer ]       pausas: [ textos ]
+     cierreAnticipado, terminadas, cerrando } */
+const guardarLocal = () => escribir(CLAVE_LOCAL, estado);
+const actDePaso = (paso) => PASOS[paso].act === "*" ? estado.asig.categoria : PASOS[paso].act;
+const resumenAsig = (a) => a ? { id: a.id, tipo: a.tipo, llamada_servicio: a.llamada_servicio || "" } : null;
+
+function textoActividad(cod, detalle) {
+  const c = CATEGORIAS[cod];
+  if (!c) return "";
+  return `${c.icono} ${c.nombre}` + (cod === "pausa" && detalle ? `: ${detalle}` : "");
+}
+
+function instantanea(etiqueta, bloquear) {
+  estado.historial.push({ etiqueta, bloquear: !!bloquear, cod: estado.act.cod, paso: estado.paso,
+                          asig: estado.asig, interr: estado.interr, nsegs: estado.segs.length });
+  if (estado.historial.length > 15) estado.historial.shift();
+}
+
+// Cierra el tramo abierto y lo envía (con la ubicación de cierre)
+function cerrarTramo(fin, promesaUbic) {
+  const a = estado.act;
+  if (!a) return;
+  estado.n += 1;
+  const seg = { uid: estado.id + "-" + estado.n, id_jornada: estado.id, fecha: estado.fecha, actividad: a.cod,
+                inicio_ts: a.ini, fin_ts: fin, detalle: a.detalle || "",
+                asignacion: a.asig ? a.asig.id : "", tipo_asignacion: a.asig ? a.asig.tipo : "",
+                llamada_servicio: a.asig ? a.asig.llamada_servicio : "",
+                ubic_inicio: a.ubic || "", ubic_fin: "obteniendo...", enviado: false };
+  estado.segs.push(seg);
+  enviarTramo(seg, promesaUbic);
+}
+
+async function enviarTramo(seg, promesaUbic) {
+  if (promesaUbic) { seg.ubic_fin = await promesaUbic; guardarLocal(); }
+  try { const r = await api("segmento", limpiarTramo(seg)); if (r.ok) { seg.enviado = true; guardarLocal(); } }
+  catch (e) { /* sin internet: se envía al cerrar la jornada */ }
+}
+
+function limpiarTramo(seg) {
+  const s = Object.assign({}, seg);
+  delete s.enviado;
+  ["ubic_inicio", "ubic_fin"].forEach(k => { if (!s[k] || s[k] === "obteniendo...") s[k] = "no disponible"; });
+  return s;
+}
+
+/* Avanza al paso indicado. Si cambia la actividad se cierra el tramo y se abre uno nuevo.
+   op: { cod, evento, tipoEvento, detalle, extra, bloquear, nuevoTramo } */
+function avanzar(nuevoPaso, op = {}) {
+  const cod = op.cod || (nuevoPaso ? actDePaso(nuevoPaso) : "espera_asignacion");
+  instantanea(op.evento || CATEGORIAS[cod].nombre, op.bloquear);
+  const ahora = Date.now();
+  const ubic = registrarUbicacion(() => {});
+  if (cod !== estado.act.cod || op.nuevoTramo) {
+    cerrarTramo(ahora, ubic);
+    estado.act = { cod, ini: ahora, ubic: "obteniendo...", detalle: op.detalle || "", asig: resumenAsig(estado.asig) };
+    ubic.then(v => { if (estado && estado.act && estado.act.ini === ahora) { estado.act.ubic = v; guardarLocal(); } });
+  }
+  estado.paso = nuevoPaso;
+  guardarLocal();
+  dibujar();
+  reportarEstado(op.evento || CATEGORIAS[cod].nombre, ubic, op.tipoEvento || (op.evento ? "marca" : "otro"),
+                 Object.assign({ cambio_actividad: true }, op.extra || {}));
+}
+
+// ---------- Reporte en vivo (lo que ve el gerente y el mapa) ----------
+async function reportarEstado(accion, promesaUbicacion, tipoEvento, extra) {
+  const ubic = await promesaUbicacion;
+  if (!estado) return;
+  const a = estado.act;
+  const datos = Object.assign({}, extra || {}, {
+    id: estado.id, fecha: estado.fecha,
+    llamada_servicio: estado.asig ? estado.asig.llamada_servicio || "" : "",
+    actividad: a ? a.cod : undefined,
+    estado: a ? textoActividad(a.cod, a.detalle) : "✅ Jornada terminada",
+    asignacion: estado.asig ? estado.asig.id : "", tipo_asignacion: estado.asig ? estado.asig.tipo : "",
+    ultima_accion: accion, evento: accion, tipo_evento: tipoEvento || "otro",
+    hora: hora24(Date.now()), ts: Date.now(),
+    ubic: (ubic && ubic.startsWith("https://")) ? ubic : (ubic || "no disponible")
+  });
+  const c = /q=(-?[\d.]+),(-?[\d.]+)/.exec(datos.ubic);
+  if (c) { datos.lat = c[1]; datos.lng = c[2]; }
+  try { await api("estado", datos); } catch (e) { /* sin conexión: el resumen se arma igual al cerrar */ }
+}
+
+// ---------- Inicio de jornada ----------
+async function iniciarJornada() {
+  $("errorInicio").textContent = "";
+  const btn = $("btnIniciar");
+  btn.disabled = true;
+  btn.textContent = "📍 Verificando ubicación...";
+  const r = await verificarUbicacion();
+  btn.disabled = false;
+  btn.textContent = "▶ Iniciar jornada";
+  if (r !== "ok") {                                     // sin ubicación no se puede iniciar
+    mostrarAvisoUbicacion("avisoUbicacionInicio", r);
+    if (esNavegadorInterno()) $("errorInicio").textContent = "Estás dentro de otra app (WhatsApp, correo…). Abre la página en Safari o Chrome.";
+    return;
+  }
+  mostrarAvisoUbicacion("avisoUbicacionInicio", null);
+  const ahora = Date.now();
+  estado = { v: 114, id: nuevoId(), usuario: sesion.usuario, nombre: sesion.nombre, unidad: sesion.unidad || "",
+             fecha: fechaHoy(), n: 0, act: { cod: "espera_asignacion", ini: ahora, ubic: "obteniendo...", detalle: "", asig: null },
+             segs: [], asig: null, paso: null, interr: null, aviso: null, historial: [], pausas: [],
+             cierreAnticipado: "", terminadas: 0, cerrando: false };
+  const ubic = registrarUbicacion(() => {});
+  ubic.then(v => { if (estado && estado.act && estado.act.ini === ahora) { estado.act.ubic = v; guardarLocal(); } });
+  guardarLocal();
+  mostrarJornada();
+  reportarEstado("Inicio de jornada", ubic, "inicio", { cambio_actividad: true });   // el retraso lo calcula Google
+  sondearAsignacion();
+}
+
+// ---------- Botón principal y preguntas ----------
+function siguientePaso() {
+  const p = PASOS[estado.paso];
+  if (p.fin) return finalizarJornada();
+  if (p.sig === null) {                                 // llegó: termina la asignación
+    const a = estado.asig;
+    avanzar(null, { cod: "espera_asignacion", evento: p.evento, bloquear: false, terminar: true });
+    estado.asig = null; estado.terminadas += 1;
+    estado.act.asig = null;
+    guardarLocal(); dibujar();
+    api("asignacion_evento", { id: a.id, evento: "terminada" }).catch(() => {});
+    $("mensaje").textContent = "✅ Asignación terminada. Quedas esperando una nueva asignación.";
+    sondearAsignacion();
+    return;
+  }
+  avanzar(p.sig, { evento: p.evento });
+}
+
+function contestar(si) {
+  const p = PASOS[estado.paso];
+  avanzar(si ? p.si : p.no, { evento: `${p.pregunta} ${si ? "Sí" : "No"}`, tipoEvento: "otro" });
+}
+
+// ---------- Entrenamiento (solo sin asignación) ----------
+function iniciarEntrenamiento() {
+  if (estado.asig || estado.paso || estado.interr) return;
+  avanzar(null, { cod: "entrenamiento", evento: "Inicio de entrenamiento", tipoEvento: "otro" });
+}
+function terminarEntrenamiento() {
+  if (estado.act.cod !== "entrenamiento") return;
+  avanzar(null, { cod: "espera_asignacion", evento: "Fin de entrenamiento", tipoEvento: "otro" });
+}
+
+// ---------- Comida y pausas (detienen la actividad y luego la retoman) ----------
+function iniciarComida() {
+  if (estado.interr) return;
+  const prev = { cod: estado.act.cod, paso: estado.paso };
+  avanzar(estado.paso, { cod: "comida", evento: "Inicio de comida", tipoEvento: "otro" });
+  estado.interr = { tipo: "comida", prev, avisado: false };
+  guardarLocal(); dibujar();
+}
+
+async function iniciarPausa() {
+  if (estado.interr) return;
+  const r = await pedirMotivo("pausa", "¿Por qué se pausa?");
+  if (!r) return;
+  const prev = { cod: estado.act.cod, paso: estado.paso };
+  avanzar(estado.paso, { cod: "pausa", detalle: r.texto, evento: "Pausa", tipoEvento: "otro",
+                         extra: { motivo_tipo: "pausa", motivo: r.motivo, motivo_otro: r.esOtro } });
+  estado.interr = { tipo: "pausa", motivo: r.texto, prev };
+  estado.pausas.push(`${hora24(Date.now())} ${r.texto}`);
+  guardarLocal(); dibujar();
+}
+
+function terminarInterrupcion(silencioso) {
+  const i = estado.interr;
+  if (!i) return;
+  estado.interr = null;
+  if (silencioso) return;
+  avanzar(i.prev.paso, { cod: i.prev.cod, evento: i.tipo === "comida" ? "Fin de comida" : "Reanudó", tipoEvento: "otro", nuevoTramo: true });
+}
+
+// ---------- Asignaciones: aviso del gerente ----------
+async function sondearAsignacion() {
+  if (!estado || !sesion || sesion.rol !== "tecnico" || estado.cerrando || estado.aviso) return;
+  const libre = !estado.asig && !estado.paso;
+  try {
+    const r = await api("mi_asignacion", { libre, actual: estado.asig ? estado.asig.id : "" });
+    if (!estado || !r.ok) return;
+    if (estado.asig && r.actual && r.actual.estado === "CANCELADA") {
+      const a = estado.asig;
+      if (estado.interr) terminarInterrupcion(true);
+      avanzar(null, { cod: "espera_asignacion", evento: "Asignación cancelada por el gerente", tipoEvento: "otro", bloquear: true });
+      estado.asig = null; estado.act.asig = null; guardarLocal(); dibujar();
+      avisar(`⚠️ Tu gerente canceló la asignación (${a.tipo}${a.llamada_servicio ? " · llamada " + a.llamada_servicio : ""}). Quedas esperando una nueva asignación.`);
+    }
+    if (libre && r.nueva && !estado.asig) {
+      estado.aviso = r.nueva;
+      guardarLocal();
+      mostrarAvisoAsignacion();
+    }
+  } catch (e) {}
+}
+
+function mostrarAvisoAsignacion() {
+  const a = estado.aviso;
+  if (!a) return;
+  $("avisoTitulo").textContent = `📋 Tienes asignación por tu gerente ${a.asignado_por}`;
+  $("avisoFecha").textContent = `Fecha y hora: ${a.creado}`;
+  $("avisoTipo").textContent = a.tipo + (a.llamada_servicio ? ` ${a.llamada_servicio}` : "");
+  $("avisoDetalle").textContent = a.detalle || "";
+  $("avisoNota").textContent = estado.act.cod === "entrenamiento" ? "Tu entrenamiento se detendrá al comenzar."
+    : estado.interr ? "Tu " + (estado.interr.tipo === "comida" ? "comida" : "pausa") + " terminará al comenzar." : "";
+  mostrar("modalAviso", true);
+  timbre();
+}
+
+function aceptarAsignacion() {
+  const a = estado.aviso;
+  if (!a) return;
+  mostrar("modalAviso", false);
+  estado.aviso = null;
+  if (estado.interr) terminarInterrupcion(true);       // comida o pausa terminan
+  estado.asig = a;
+  api("asignacion_evento", { id: a.id, evento: "aceptada" }).catch(() => {});
+  avanzar(a.flujo === "servicio" ? "prep_firma" : "v_listo",
+          { evento: "Asignación aceptada: " + a.tipo + (a.llamada_servicio ? " " + a.llamada_servicio : ""), tipoEvento: "otro", bloquear: true });
+  $("mensaje").textContent = "";
+}
+
+// Sonido corto + vibración para que el técnico note el aviso
+function timbre() {
+  try { navigator.vibrate && navigator.vibrate([300, 150, 300, 150, 300]); } catch (e) {}
+  try {
+    const ctx = new (window.AudioContext || window.webkitAudioContext)();
+    [0, 0.25, 0.5].forEach(t => {
+      const o = ctx.createOscillator(), g = ctx.createGain();
+      o.frequency.value = 880; o.connect(g); g.connect(ctx.destination);
+      g.gain.setValueAtTime(0.2, ctx.currentTime + t); o.start(ctx.currentTime + t); o.stop(ctx.currentTime + t + 0.15);
+    });
+  } catch (e) {}
+}
+
+function avisar(texto) {
+  $("mensaje").textContent = texto;
+  timbre();
+}
+
+// ---------- Cierre anticipado de una asignación ----------
+async function cierreAnticipado() {
+  if (!estado.asig || estado.interr) return;
+  const r = await pedirMotivo("cierre", "Motivo para cerrar anticipadamente esta asignación");
+  if (!r) return;
+  const a = estado.asig;
+  avanzar(null, { cod: "espera_asignacion", evento: "Cierre anticipado: " + r.texto, tipoEvento: "cierre", bloquear: true,
+                  extra: { motivo_tipo: "cierre", motivo: r.motivo, motivo_otro: r.esOtro } });
+  estado.asig = null; estado.act.asig = null; estado.cierreAnticipado = r.texto;
+  guardarLocal(); dibujar();
+  api("asignacion_evento", { id: a.id, evento: "cerrada", motivo: r.texto }).catch(() => {});
+  if (await pedirSiNo("¿Terminas tu jornada?")) cerrarJornada(true);
+}
+
+// ---------- Cerrar jornada ----------
+async function cerrarJornada(sinConfirmar) {
+  if (estado.asig || estado.interr || estado.paso) return;
+  if (!sinConfirmar && !(await pedirSiNo("¿Seguro que terminas tu jornada?"))) return;
+  if (await pedirSiNo("¿Realizas reportes finales?")) {
+    avanzar("reportes", { evento: "Inicio de reportes finales", tipoEvento: "otro", bloquear: true });
+    return;
+  }
+  finalizarJornada();
+}
+
+async function finalizarJornada() {
+  if (estado.cerrando) return;
+  const ubic = registrarUbicacion(() => {});
+  cerrarTramo(Date.now(), ubic);
+  estado.act = null; estado.paso = null; estado.cerrando = true;
+  guardarLocal(); dibujar();
+  reportarEstado("Fin de jornada", ubic, "cierre", {});
+  enviarJornada();
+}
+
+async function enviarJornada() {
+  $("mensaje").textContent = "Enviando tu jornada...";
+  await Promise.all(pendientes);
+  try {
+    const r = await api("jornada", {
+      id: estado.id, fecha: estado.fecha, estado: estado.cierreAnticipado ? "Cerrada anticipada" : "Completa",
+      motivo_cierre: estado.cierreAnticipado, pausas: estado.pausas.join(" ; "),
+      segmentos: estado.segs.filter(s => !s.enviado).map(limpiarTramo)
+    });
+    if (!r.ok) throw new Error(r.mensaje || "rechazado");
+    borrar(CLAVE_LOCAL);
+    estado.enviada = true;
+    $("mensaje").textContent = "✅ Jornada cerrada y guardada. ¡Buen trabajo!";
+    cargarMisJornadas();
+  } catch (err) {
+    if (err.message !== "sesion")
+      $("mensaje").textContent = "❌ No se pudo enviar (" + (err.message === "Failed to fetch" ? "sin internet" : err.message) + "). Tus datos siguen guardados en este celular.";
+  }
+  dibujar();
+}
+
+// ---------- Deshacer el último paso (requiere autorización del gerente) ----------
+async function deshacer() {
+  const h = estado.historial[estado.historial.length - 1];
+  if (!h || h.bloquear || estado.interr || estado.cerrando) return;
+  const reabrir = estado.segs.length > h.nsegs ? estado.segs[h.nsegs] : null;
+  const r = await pedirDatos({ titulo: `🔒 Deshacer "${h.etiqueta}" requiere autorización de un gerente. Escribe el motivo y el usuario del gerente:`,
+                               texto: true, campo: { placeholder: "Usuario del gerente (Nombre_id)" } });
+  if (!r) return;
+  $("mensaje").textContent = "Enviando solicitud al gerente...";
+  try {
+    const s = await api("solicitar_borrado", { gerente: r.campo, motivo: r.texto, id: estado.id, fecha: estado.fecha,
+                                              marca: h.etiqueta, hora_marca: hora24(Date.now()), uid: reabrir ? reabrir.uid : "" });
+    if (!s.ok) { $("mensaje").textContent = "❌ " + s.mensaje; return; }
+    const c = await pedirDatos({ titulo: s.mensaje + (s.metodo === "autenticador" ? " Escríbelo aquí:" : " Pídele el código y escríbelo aquí:"),
+                                 campo: { placeholder: "Código de 6 dígitos", numerico: true } });
+    if (!c) { $("mensaje").textContent = "Cancelado."; return; }
+    const v = await api("confirmar_borrado", { solicitud: s.solicitud, codigo: c.campo });
+    if (!v.ok) { $("mensaje").textContent = "❌ " + v.mensaje; return; }
+  } catch (e) {
+    if (e.message !== "sesion") $("mensaje").textContent = "❌ Se necesita internet para autorizar.";
+    return;
+  }
+  estado.historial.pop();
+  if (reabrir) {                                    // vuelve a abrir el tramo anterior
+    estado.segs = estado.segs.slice(0, h.nsegs);
+    estado.act = { cod: reabrir.actividad, ini: reabrir.inicio_ts, ubic: reabrir.ubic_inicio, detalle: reabrir.detalle,
+                   asig: reabrir.asignacion ? { id: reabrir.asignacion, tipo: reabrir.tipo_asignacion, llamada_servicio: reabrir.llamada_servicio } : null };
+  }
+  if (!estado.asig && h.asig) api("asignacion_evento", { id: h.asig.id, evento: "reabierta" }).catch(() => {});
+  estado.paso = h.paso; estado.asig = h.asig; estado.interr = h.interr;
+  guardarLocal();
+  $("mensaje").textContent = `✅ Se deshizo "${h.etiqueta}" con autorización del gerente.`;
+  dibujar();
+  reportarEstado("Deshizo (autorizado): " + h.etiqueta, Promise.resolve("no disponible"), "otro", { cambio_actividad: true });
+}
+
+// ---------- Ventana Sí / No ----------
+function pedirSiNo(titulo) {
+  return new Promise(resolver => {
+    $("modalTitulo").textContent = titulo;
+    ["modalLista", "modalTexto", "modalCampo"].forEach(id => mostrar(id, false));
+    $("modalError").textContent = "";
+    $("modalOk").textContent = "Sí"; $("modalCancelar").textContent = "No";
+    mostrar("modal", true);
+    const cerrar = (v) => { mostrar("modal", false); $("modalOk").textContent = "Confirmar"; $("modalCancelar").textContent = "Cancelar"; resolver(v); };
+    $("modalOk").onclick = () => cerrar(true);
+    $("modalCancelar").onclick = () => cerrar(false);
+  });
+}
+
+// ---------- Rastreo GPS (solo traslados) ----------
+let ultimoRastreo = 0, rastreando = false, wakeLock = null;
+const enTraslado = () => !!estado && !!sesion && !estado.cerrando && !estado.interr && !!estado.paso && !!PASOS[estado.paso].traslado;
+
+async function rastrear(forzar) {
+  if (!enTraslado() || rastreando) return;
+  if (!forzar && Date.now() - ultimoRastreo < RASTREO_TRASLADO_MS) return;
+  rastreando = true;
+  ultimoRastreo = Date.now();
+  const pos = await new Promise(res => {
+    if (!navigator.geolocation) return res(null);
+    navigator.geolocation.getCurrentPosition(p => res(p.coords), () => res(null),
+      { enableHighAccuracy: true, timeout: 20000, maximumAge: 30000 });
+  });
+  if (pos && enTraslado()) {
+    try {
+      await api("ubicacion", {
+        id: estado.id, fecha: estado.fecha, llamada_servicio: estado.asig ? estado.asig.llamada_servicio || "" : "",
+        estado: textoActividad(estado.act.cod), evento: "Rastreo", hora: hora24(Date.now()), ts: Date.now(),
+        lat: pos.latitude.toFixed(6), lng: pos.longitude.toFixed(6), precision: Math.round(pos.accuracy)
+      });
+    } catch (e) {}
+  }
+  rastreando = false;
+  dibujarInfoRastreo(pos);
+}
+
+function dibujarInfoRastreo(pos) {
+  const info = $("infoRastreo");
+  if (!enTraslado()) { info.textContent = ""; return; }
+  info.textContent = "📡 Ubicación activa durante el traslado" + (wakeLock ? " · 🔆 pantalla encendida" : " · ⚠️ no bloquees el celular")
+                     + (pos === null ? " · ⚠️ sin GPS" : "");
+}
+
+// ======================= PANTALLA DEL TÉCNICO (sin cronómetros ni horas) =======================
+function mostrarJornada() {
+  mostrar("pantallaInicio", false);
+  mostrar("pantallaJornada", true);
+  dibujar();
+}
+
+function boton(texto, clase, accion, desactivado) {
+  const b = document.createElement("button");
+  b.textContent = texto; b.className = clase; b.onclick = accion; b.disabled = !!desactivado;
+  return b;
+}
+
+function dibujar() {
+  if (!estado || !sesion || sesion.rol !== "tecnico" || $("pantallaJornada").classList.contains("oculto")) return;
+  const zona = $("zonaAccion"), sec = $("botonesSecundarios");
+  zona.innerHTML = ""; sec.innerHTML = "";
+  const a = estado.act;
+
+  // Actividad actual (sin horas)
+  $("actividadActual").textContent = estado.cerrando ? "🏁 Jornada cerrada" : textoActividad(a.cod, a.detalle);
+  $("actividadActual").style.borderColor = a ? COLOR_GRUPO[CATEGORIAS[a.cod].grupo] : "#16a34a";
+
+  // Tarjeta de la asignación
+  mostrar("cardAsignacion", !!estado.asig);
+  if (estado.asig) {
+    $("asigTipo").textContent = estado.asig.tipo + (estado.asig.llamada_servicio ? ` ${estado.asig.llamada_servicio}` : "");
+    $("asigDetalle").textContent = estado.asig.detalle || "";
+    $("asigDe").textContent = "Asignada por " + estado.asig.asignado_por;
+  }
+  $("lblTerminadas").textContent = estado.terminadas ? `Asignaciones terminadas hoy: ${estado.terminadas}` : "";
+
+  if (estado.cerrando) {
+    if (!estado.enviada) zona.appendChild(boton("🔁 Reintentar envío", "btn-principal", enviarJornada));
+    return;
+  }
+
+  const p = estado.paso ? PASOS[estado.paso] : null;
+  if (estado.interr) {                                         // ---- en comida o pausa
+    const t = document.createElement("p"); t.className = "texto-paso";
+    t.textContent = estado.interr.tipo === "comida" ? "Disfruta tu comida. Te avisaremos al cumplirse el tiempo." : "Pausa: " + estado.interr.motivo;
+    zona.appendChild(t);
+    zona.appendChild(boton(estado.interr.tipo === "comida" ? "✅ Terminé de comer" : "▶ Reanudar", "btn-principal", () => terminarInterrupcion()));
+  } else if (p && p.pregunta) {                                // ---- pregunta Sí / No
+    const t = document.createElement("p"); t.className = "pregunta"; t.textContent = p.pregunta;
+    zona.appendChild(t);
+    const fila = document.createElement("div"); fila.className = "fila-botones";
+    fila.appendChild(boton("Sí", "btn-si", () => contestar(true)));
+    fila.appendChild(boton("No", "btn-no", () => contestar(false)));
+    zona.appendChild(fila);
+  } else if (p) {                                              // ---- paso con botón principal
+    if (p.destacado) { const d = document.createElement("p"); d.className = "destacado"; d.textContent = p.destacado; zona.appendChild(d); }
+    const t = document.createElement("p"); t.className = "texto-paso"; t.textContent = p.texto; zona.appendChild(t);
+    zona.appendChild(boton(p.boton, "btn-principal", siguientePaso));
+  } else if (a.cod === "entrenamiento") {                      // ---- entrenamiento
+    const t = document.createElement("p"); t.className = "texto-paso";
+    t.textContent = "Estás en entrenamiento. Si tu gerente te asigna trabajo, te avisaremos aquí.";
+    zona.appendChild(t);
+    zona.appendChild(boton("⏹ Terminar entrenamiento", "btn-principal", terminarEntrenamiento));
+  } else {                                                     // ---- esperando asignación
+    const t = document.createElement("p"); t.className = "texto-paso";
+    t.textContent = "Tu gerente te enviará una llamada de servicio o un viaje. Esta pantalla se actualiza sola.";
+    zona.appendChild(t);
+    zona.appendChild(boton("🎓 Iniciar entrenamiento (opcional)", "btn-secundario ancho", iniciarEntrenamiento));
+  }
+
+  // Botones secundarios
+  const fila1 = document.createElement("div"); fila1.className = "fila-botones";
+  if (!estado.interr) {
+    fila1.appendChild(boton("🍽 Comida", "btn-comida", iniciarComida));
+    fila1.appendChild(boton("⏸ Pausa", "btn-pausa", iniciarPausa));
+  }
+  if (estado.asig && !estado.interr) fila1.appendChild(boton("⛔ Cierre anticipado", "btn-cerrar", cierreAnticipado));
+  if (!estado.asig && !estado.paso && !estado.interr) fila1.appendChild(boton("🏁 Cerrar jornada", "btn-cerrar", () => cerrarJornada(false)));
+  sec.appendChild(fila1);
+  const h = estado.historial[estado.historial.length - 1];
+  if (h && !h.bloquear && !estado.interr) sec.appendChild(boton("↶ Deshacer último paso", "btn-secundario ancho", deshacer));
+
+  actualizarWakeLock();
+  dibujarInfoRastreo();
+}
+
+// Aviso de fin de comida (el técnico no ve el cronómetro)
+function revisarComida() {
+  if (!estado || !estado.interr || estado.interr.tipo !== "comida" || estado.interr.avisado || !estado.act) return;
+  if (Date.now() - estado.act.ini >= MINUTOS_COMIDA * 60000) {
+    estado.interr.avisado = true; guardarLocal();
+    avisar(`🍽 Se cumplieron tus ${MINUTOS_COMIDA} minutos de comida.`);
+  }
+}
+
+async function cargarMisJornadas() {
+  const tbody = $("tablaMisJornadas");
+  try {
+    const r = await api("mis_datos");
+    if (!r.ok) return;
+    if (r.unidad && sesion) { sesion.unidad = r.unidad; escribir(CLAVE_SESION, sesion); $("lblUnidad").textContent = r.unidad; }
+    if (!r.jornadas.length) return filaVacia(tbody, 5, "Aún no tienes jornadas registradas");
+    tbody.innerHTML = "";
+    r.jornadas.slice().reverse().forEach(j => tbody.appendChild(fila([j.fecha, j.estado, j.asignaciones, j.llamadas, j.km_total])));
+  } catch (e) { if (e.message !== "sesion") filaVacia(tbody, 5, "No se pudo cargar"); }
+}
+
+// ======================= PANEL DE GERENTES (v1.14) =======================
+const ahoraServidor = () => Date.now() + desfaseServidor;
+const num = (v) => Number(String(v || "0").replace(",", ".")) || 0;
+function hMin(min) {                                   // 125 → "2:05 h"
+  const m = Math.max(0, Math.round(min));
+  return `${Math.floor(m / 60)}:${dos(m % 60)} h`;
+}
+function ultimaFila(filas, usuario) {                  // la fila "En curso" más reciente del técnico
+  return filas.filter(r => r.usuario === usuario).sort((a, b) => num(b.inicio_ts) - num(a.inicio_ts))[0] || null;
+}
+
+async function cargarPanelGerente() {
+  if (!sesion || sesion.rol !== "gerente") return;
+  try {
+    const r = await api("panel");
+    if (!r.ok) return;
+    panel = r;
+    desfaseServidor = r.ahora - Date.now();
+    llenarSelectoresGerente();
+    dibujarTecnicosGerente();
+    dibujarAsignacionesGerente();
+    dibujarJornadasGerente();
+    $("gActualizado").textContent = "Actualizado " + new Date().toLocaleTimeString("es", { hour12: false });
+  } catch (e) {}
+}
+
+function llenarSelectoresGerente() {
+  const sel = $("gTecnico"), previo = sel.value;
+  if (sel.options.length !== panel.tecnicos.length + 1) {
+    sel.innerHTML = "";
+    const o0 = document.createElement("option"); o0.value = ""; o0.textContent = "— Elige técnico —"; sel.appendChild(o0);
+    panel.tecnicos.forEach(t => {
+      const o = document.createElement("option"); o.value = t.usuario;
+      o.textContent = t.nombre + (t.unidad ? " · " + t.unidad : ""); sel.appendChild(o);
+    });
+    sel.value = previo;
+  }
+  const tipo = $("gTipo");
+  if (!tipo.options.length) {
+    panel.tipos.forEach(t => { const o = document.createElement("option"); o.value = o.textContent = t; tipo.appendChild(o); });
+    actualizarFormularioAsignar();
+  }
+}
+
+function actualizarFormularioAsignar() {
+  mostrar("gLblLlamada", $("gTipo").value === "Llamada de servicio");
+}
+
+async function asignarDesdePanel() {
+  const datos = { usuario: $("gTecnico").value, tipo: $("gTipo").value,
+                  llamada_servicio: $("gLlamada").value.trim(), detalle: $("gDetalle").value.trim() };
+  const msg = $("gMensaje");
+  if (!datos.usuario) { msg.textContent = "Elige un técnico."; return; }
+  if (datos.tipo === "Llamada de servicio" && !/^\d{5}$/.test(datos.llamada_servicio)) { msg.textContent = "La llamada de servicio debe tener 5 dígitos."; return; }
+  $("btnAsignar").disabled = true;
+  try {
+    const r = await api("asignar", datos);
+    msg.textContent = r.ok ? "✅ Asignado. Al técnico le llegará el aviso en menos de un minuto." : "❌ " + r.mensaje;
+    if (r.ok) { $("gLlamada").value = ""; $("gDetalle").value = ""; cargarPanelGerente(); }
+  } catch (e) { msg.textContent = "Sin conexión. Intenta de nuevo."; }
+  finally { $("btnAsignar").disabled = false; }
+}
+
+async function cancelarDesdePanel(a) {
+  if (!(await pedirSiNo(`¿Cancelar ${a.tipo}${a.llamada_servicio ? " " + a.llamada_servicio : ""} de ${a.nombre}?`))) return;
+  try { const r = await api("cancelar_asignacion", { id: a.id }); if (!r.ok) alert(r.mensaje); } catch (e) {}
+  cargarPanelGerente();
+}
+
+async function ausenciaDesdePanel(t) {
+  const r = await pedirDatos({ titulo: `Registrar AUSENCIA de ${t.nombre} hoy. Motivo:`, texto: true });
+  if (!r) return;
+  try { const x = await api("ausencia", { usuario: t.usuario, motivo: r.texto }); if (!x.ok) alert(x.mensaje); } catch (e) {}
+  cargarPanelGerente();
+}
+
+// Tarjeta por técnico: actividad, cronómetro en vivo, barra del día y alertas
+function dibujarTecnicosGerente() {
+  const cont = $("gTecnicos");
+  cont.innerHTML = "";
+  const ausentes = new Set(panel.jornadas.filter(j => j.fecha === panel.hoy && j.estado === "Ausencia").map(j => j.usuario));
+  const cerradas = new Set(panel.jornadas.filter(j => j.fecha === panel.hoy && j.estado !== "Ausencia").map(j => j.usuario));
+  panel.tecnicos.forEach(t => {
+    const ec = ultimaFila(panel.encurso, t.usuario);
+    const res = panel.resumen[t.usuario] || { verde: 0, naranja: 0, rojo: 0 };
+    const caja = document.createElement("div"); caja.className = "g-tec";
+    const cab = document.createElement("div"); cab.className = "g-cab";
+    const nom = document.createElement("b"); nom.textContent = t.nombre; cab.appendChild(nom);
+    const uni = document.createElement("span"); uni.className = "info"; uni.textContent = t.unidad || "sin unidad"; cab.appendChild(uni);
+    caja.appendChild(cab);
+
+    const estadoTxt = document.createElement("div"); estadoTxt.className = "g-estado";
+    const crono = document.createElement("span"); crono.className = "g-crono";
+    const alertas = [];
+    let corriendo = null;
+    if (ausentes.has(t.usuario)) {
+      estadoTxt.textContent = "🚫 Ausencia registrada";
+    } else if (!ec) {
+      estadoTxt.textContent = "⚪ Sin iniciar jornada";
+      const [h, m] = (t.hora_entrada || "08:00").split(":").map(Number);
+      const entrada = new Date(ahoraServidor()); entrada.setHours(h, m, 0, 0);
+      if (ahoraServidor() > entrada.getTime()) alertas.push(`⚠️ No ha iniciado (entrada ${t.hora_entrada})`);
+    } else if (cerradas.has(t.usuario) || /terminada/i.test(ec.estado)) {
+      estadoTxt.textContent = "🏁 Jornada cerrada";
+    } else {
+      const cat = CATEGORIAS[ec.actividad];
+      estadoTxt.textContent = cat ? `${cat.icono} ${cat.nombre}` : ec.estado;
+      if (cat) estadoTxt.style.color = COLOR_GRUPO[cat.grupo];
+      if (num(ec.desde_ts)) {
+        corriendo = { desde: num(ec.desde_ts), grupo: cat ? cat.grupo : "rojo", cod: ec.actividad };
+        crono.dataset.desde = corriendo.desde;
+      }
+      if (ec.estado && /^⏸/.test(ec.estado)) estadoTxt.textContent = ec.estado;
+    }
+    estadoTxt.appendChild(crono);
+    caja.appendChild(estadoTxt);
+
+    // Asignación actual / retraso / km
+    const det = document.createElement("div"); det.className = "info";
+    const partes = [];
+    if (ec && ec.tipo_asignacion && ec.tipo_asignacion !== "-") partes.push("📋 " + ec.tipo_asignacion + (ec.llamada_servicio ? " " + ec.llamada_servicio : ""));
+    if (ec && num(ec.retraso_min) > 0) partes.push(`⏰ Retraso ${num(ec.retraso_min)} min`);
+    if (ec) partes.push(`🚗 ${ec.km || "0.00"} km`);
+    det.textContent = partes.join(" · ");
+    caja.appendChild(det);
+
+    // Barra del día (verde / naranja / rojo) contra las 8 horas
+    const barra = document.createElement("div"); barra.className = "barra-dia";
+    ["verde", "naranja", "rojo"].forEach(g => { const s = document.createElement("span"); s.className = "b-" + g; barra.appendChild(s); });
+    const leyenda = document.createElement("div"); leyenda.className = "info g-leyenda";
+    caja.appendChild(barra); caja.appendChild(leyenda);
+    caja._datos = { res, corriendo, barra, leyenda, crono, alertasFijas: alertas.concat(ec && ec.alerta ? [ec.alerta] : []) };
+
+    const al = document.createElement("div"); al.className = "g-alertas"; caja.appendChild(al); caja._datos.al = al;
+
+    // Acciones
+    const acc = document.createElement("div"); acc.className = "g-acciones";
+    if (ec && ec.ubic && /^https:\/\/www\.google\.com\/maps\?q=/.test(ec.ubic)) {
+      const a = document.createElement("a"); a.href = ec.ubic; a.target = "_blank"; a.rel = "noopener noreferrer"; a.textContent = "📍 Ubicación";
+      acc.appendChild(a);
+    }
+    if (!ec && !ausentes.has(t.usuario)) acc.appendChild(boton("🚫 Registrar ausencia", "btn-secundario chico", () => ausenciaDesdePanel(t)));
+    caja.appendChild(acc);
+    cont.appendChild(caja);
+  });
+  tickGerente();
+}
+
+// Cada segundo: cronómetros, barra y alertas (solo los gerentes ven el tiempo)
+function tickGerente() {
+  if (!panel || !sesion || sesion.rol !== "gerente") return;
+  document.querySelectorAll(".g-tec").forEach(caja => {
+    const d = caja._datos;
+    if (!d) return;
+    const tot = { verde: d.res.verde, naranja: d.res.naranja, rojo: d.res.rojo };
+    const alertas = d.alertasFijas.slice();
+    if (d.corriendo) {
+      const min = (ahoraServidor() - d.corriendo.desde) / 60000;
+      tot[d.corriendo.grupo] += Math.max(0, min);
+      d.crono.textContent = " · " + duracion(ahoraServidor() - d.corriendo.desde);
+      if (d.corriendo.cod === "comida" && min > panel.minutos_comida) alertas.push(`⚠️ Comida pasa de ${panel.minutos_comida} min`);
+      if (d.corriendo.cod === "preparacion" && min > panel.minutos_preparacion) alertas.push(`⚠️ Preparación pasa de ${panel.minutos_preparacion} min`);
+    }
+    const total = tot.verde + tot.naranja + tot.rojo;
+    const base = Math.max(panel.jornada_min, total);
+    ["verde", "naranja", "rojo"].forEach((g, i) => d.barra.children[i].style.width = (tot[g] / base * 100) + "%");
+    d.leyenda.textContent = `🟢 ${hMin(tot.verde)} · 🟠 ${hMin(tot.naranja)} · 🔴 ${hMin(tot.rojo)} · Total ${hMin(total)} de ${hMin(panel.jornada_min)}`;
+    d.al.textContent = alertas.join("  ");
+  });
+}
+
+function dibujarAsignacionesGerente() {
+  const tb = $("gAsignaciones");
+  if (!panel.asignaciones.length) return filaVacia(tb, 6, "No hay asignaciones hoy");
+  tb.innerHTML = "";
+  panel.asignaciones.slice().reverse().forEach(a => {
+    const tr = fila([a.nombre, a.tipo + (a.llamada_servicio ? " " + a.llamada_servicio : ""), a.estado || "PENDIENTE",
+                     a.asignado_por || "Hoja de cálculo", a.creado]);
+    const td = document.createElement("td");
+    if (["", "PENDIENTE", "NOTIFICADA", "EN CURSO"].includes(a.estado) && a.id) td.appendChild(boton("Cancelar", "btn-secundario chico", () => cancelarDesdePanel(a)));
+    tr.appendChild(td);
+    tb.appendChild(tr);
+  });
+}
+
+function dibujarJornadasGerente() {
+  const th = $("tablaHistorial");
+  if (!panel.jornadas.length) return filaVacia(th, 8, "Sin registros");
+  th.innerHTML = "";
+  panel.jornadas.slice().reverse().forEach(j => th.appendChild(fila([
+    j.nombre, j.fecha, j.estado, hMin(num(j.min_verde)), hMin(num(j.min_naranja)), hMin(num(j.min_rojo)), j.km_total, j.alerta_hora])));
+}
+
+// ======================= ARRANQUE =======================
+$("loginCodigo").addEventListener("input", e => e.target.value = e.target.value.replace(/\D/g, "").slice(0, 6));
+$("loginCodigo").addEventListener("keydown", e => { if (e.key === "Enter") entrar(); });
+$("tabTecnico").onclick = () => cambiarModoLogin("tecnico");
+$("tabGerente").onclick = () => cambiarModoLogin("gerente");
+$("btnPedirCodigo").onclick = pedirCodigo;
+$("btnEntrarApp").onclick = entrarConApp;
+$("lnkPrimeraVez").onclick = () => { mostrar("bloqueApp", false); mostrar("btnPedirCodigo", true); $("errorLogin").textContent = ""; };
+$("btnConfirmarApp").onclick = confirmarEnrolamiento;
+["loginApp", "codigoEnrolar"].forEach(id => $(id).addEventListener("input", e => e.target.value = e.target.value.replace(/\D/g, "").slice(0, 6)));
+$("loginApp").addEventListener("keydown", e => { if (e.key === "Enter") entrarConApp(); });
+$("codigoEnrolar").addEventListener("keydown", e => { if (e.key === "Enter") confirmarEnrolamiento(); });
+$("btnEntrar").onclick = entrar;
+$("btnOtroCodigo").onclick = () => { mostrar("pasoCodigo", false); mostrar("pasoUsuario", true); $("errorLogin").textContent = ""; };
+$("btnSalir").onclick = salir;
+$("btnIniciar").onclick = iniciarJornada;
+$("btnAceptarAviso").onclick = aceptarAsignacion;
+$("btnAsignar").onclick = asignarDesdePanel;
+$("gTipo").onchange = actualizarFormularioAsignar;
+$("gLlamada").addEventListener("input", e => e.target.value = e.target.value.replace(/\D/g, "").slice(0, 5));
+
+estado = leer(CLAVE_LOCAL);
+if (estado && estado.v !== 114) estado = null;
+sesion = leer(CLAVE_SESION);
+if (sesion && (!sesion.token || sesion.exp < Date.now())) { cerrarSesionLocal(); }
+if (sesion) iniciarSegunRol(); else mostrarLogin("");
+
+setInterval(() => { revisarComida(); rastrear(false); }, 15000);
+setInterval(revisarComida, 1000);
+setInterval(sondearAsignacion, SONDEO_ASIGNACION_MS);
+setInterval(tickGerente, 1000);
+setInterval(cargarPanelGerente, 30000);
+document.addEventListener("visibilitychange", () => {
+  if (document.visibilityState === "visible") { rastrear(true); sondearAsignacion(); }
+  actualizarWakeLock();
+});
+</script>
+</body>
+</html>
