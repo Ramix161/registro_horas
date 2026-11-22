@@ -1,0 +1,350 @@
+<!DOCTYPE html>
+<!-- Registro de Horas · mapa.html · v1.14.1 · 2026-11-22 -->
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<!-- OpenStreetMap exige saber desde qué sitio se piden los mapas: se envía solo el dominio, nunca la ruta -->
+<meta name="referrer" content="strict-origin-when-cross-origin">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Mapa de Técnicos en Tiempo Real</title>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
+      integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="">
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
+        integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
+<style>
+  * { box-sizing: border-box; }
+  /* ===== COLORES DE LA EMPRESA: cambia solo estas líneas (iguales a index.html) ===== */
+  :root { --primario:#111111; --marca:#F6CE00; --primario-claro:#F6CE00; --acento:#f59e0b; --texto:#1f2937; }
+  html, body { margin:0; height:100%; font-family: system-ui, sans-serif; color:var(--texto); }
+  header img { height:34px; width:auto; background:#fff; border-radius:6px; padding:3px; }
+  .km { font-weight:700; color:var(--primario); }
+  body { display:flex; flex-direction:column; }
+  header { background:var(--primario); color:#fff; padding:10px 14px; display:flex; flex-wrap:wrap; gap:10px; align-items:center; }
+  header h1 { font-size:1.1rem; margin:0; flex:1 1 auto; color:var(--marca); }
+  header label { font-size:.85rem; display:flex; align-items:center; gap:6px; }
+  header input[type=date] { padding:5px; border-radius:6px; border:0; }
+  header button { background:#fff; color:var(--primario); border:0; border-radius:6px; padding:6px 10px; cursor:pointer; font-size:.85rem; }
+  #actualizado { font-size:.8rem; opacity:.85; }
+  main { flex:1; display:flex; min-height:0; }
+  #lista { width:300px; overflow-y:auto; background:#f8fafc; border-right:1px solid #e5e7eb; }
+  #mapa { flex:1; }
+  .tec { padding:10px 12px; border-bottom:1px solid #e5e7eb; cursor:pointer; }
+  .tec:hover { background:#eef2ff; }
+  .tec .nombre { font-weight:700; display:flex; align-items:center; gap:8px; }
+  .tec .punto { width:12px; height:12px; border-radius:50%; flex:none; }
+  .tec .detalle { font-size:.82rem; color:#4b5563; margin-top:3px; }
+  .senal { font-size:.75rem; padding:1px 6px; border-radius:10px; color:#fff; margin-left:auto; }
+  .ok { background:#16a34a; } .tarde { background:#d97706; } .perdida { background:#6b7280; }
+  .vacio { padding:16px; color:#6b7280; font-size:.9rem; }
+  /* Etiqueta con nombre sobre el mapa */
+  .marcador { display:flex; align-items:center; gap:4px; white-space:nowrap; }
+  .marcador .circulo { width:18px; height:18px; border-radius:50%; border:3px solid #fff; box-shadow:0 0 4px #0008; }
+  .marcador .etiqueta { background:#fff; padding:1px 6px; border-radius:4px; font-size:12px; font-weight:600; box-shadow:0 1px 3px #0005; }
+  .marcador.sin-senal .circulo { opacity:.45; }
+  /* Pantalla de clave */
+  #login { position:fixed; inset:0; background:#0f172acc; display:flex; align-items:center; justify-content:center; z-index:2000; }
+  #login .caja { background:#fff; padding:22px; border-radius:10px; width:min(340px, 90vw); }
+  #login input { width:100%; padding:10px; font-size:1rem; margin:10px 0 6px; }
+  #login button { width:100%; padding:10px; background:var(--marca); color:#111; font-weight:700; border:0; border-radius:6px; font-size:1rem; cursor:pointer; }
+  #loginError { color:#dc2626; font-size:.85rem; min-height:1.2em; }
+  .oculto { display:none !important; }
+  @media (max-width: 700px) {
+    main { flex-direction:column-reverse; }
+    #lista { width:100%; height:35%; border-right:0; border-top:1px solid #e5e7eb; }
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <img src="logo.png" alt="Logo" onerror="this.remove()">
+  <h1>🗺️ Técnicos en tiempo real <span style="font-size:.7rem;font-weight:400;opacity:.7">v1.14.1 · 2026-11-22</span></h1>
+  <label>Fecha <input type="date" id="fecha"></label>
+  <label><input type="checkbox" id="verRecorridos" checked> Recorridos</label>
+  <button id="btnTodos">Ver todos</button>
+  <span id="actualizado"></span>
+  <span id="lblGerente" style="font-size:.85rem"></span>
+  <button id="btnSalir" class="oculto">Cerrar sesión</button>
+</header>
+
+<main>
+  <div id="lista"><div class="vacio">Cargando...</div></div>
+  <div id="mapa"></div>
+</main>
+
+<div id="login" class="oculto">
+  <div class="caja">
+    <b>🔒 Acceso de gerentes</b>
+    <input id="usuario" placeholder="Usuario (Nombre_id)" autocomplete="username" autocapitalize="off" maxlength="60">
+    <input id="codigo" inputmode="numeric" maxlength="6" placeholder="Código de Microsoft Authenticator" autocomplete="one-time-code">
+    <button id="btnEntrar">Entrar</button>
+    <p style="font-size:.8rem;color:#4b5563">¿Primera vez? Vincula Microsoft Authenticator desde la <a href="./">página principal</a> (pestaña Gerente).</p>
+    <div id="loginError"></div>
+  </div>
+</div>
+
+<script>
+// ======================= CONFIGURACIÓN =======================
+const URL_API = "https://script.google.com/macros/s/AKfycbyjQOBh_bHY-DS5z3v3d3hRBQ4NVNUW7kE6VM-u97vy_dl4AvQLu3Ry8hDNU--djwgOaQ/exec";
+const ACTUALIZAR_CADA_MS = 30 * 1000;     // refresco automático (solo para el día de hoy)
+const MIN_SENAL_OK = 5;                    // verde: señal de hace menos de 5 min
+const MIN_SENAL_TARDE = 15;                // naranja: 5–15 min · gris: más de 15 min
+const COLORES = ["#2563eb", "#dc2626", "#16a34a", "#9333ea", "#ea580c", "#0891b2", "#db2777", "#65a30d", "#4f46e5", "#b45309"];
+
+// ======================= UTILIDADES =======================
+const $ = (id) => document.getElementById(id);
+const dos = (n) => String(n).padStart(2, "0");
+function hoy() { const d = new Date(); return `${d.getFullYear()}-${dos(d.getMonth() + 1)}-${dos(d.getDate())}`; }
+// Sesión COMPARTIDA con index.html: si el gerente ya entró allá, aquí no se pide otro código
+const CLAVE_SESION = "sesionRH";
+function leerSesion() {
+  try { const s = JSON.parse(localStorage.getItem(CLAVE_SESION)); return s && s.token && s.rol === "gerente" && s.exp > Date.now() ? s : null; }
+  catch (e) { return null; }
+}
+function guardarSesion(s) {
+  try {
+    if (s) localStorage.setItem(CLAVE_SESION, JSON.stringify(s));
+    else if (leerSesion()) localStorage.removeItem(CLAVE_SESION);   // nunca borra la sesión de un técnico
+  } catch (e) {}
+}
+try { localStorage.removeItem("claveMapa"); sessionStorage.removeItem("sesionMapa"); } catch (e) {}   // restos de versiones anteriores
+
+async function api(accion, datos = {}) {
+  const s = leerSesion();
+  const resp = await fetch(URL_API, {
+    method: "POST", headers: { "Content-Type": "text/plain;charset=utf-8" },
+    body: JSON.stringify(Object.assign({ accion, token: s && s.token }, datos))
+  });
+  return resp.json();
+}
+
+function mostrarLogin(mensaje) {
+  guardarSesion(null);
+  $("btnSalir").classList.add("oculto");
+  $("lblGerente").textContent = "";
+  $("loginError").textContent = mensaje || "";
+  $("login").classList.remove("oculto");
+}
+const num = (v) => parseFloat(String(v).replace(",", "."));        // por si Sheets usa coma decimal
+const coordValida = (lat, lng) => isFinite(lat) && isFinite(lng) && !(lat === 0 && lng === 0);
+
+// Minutos desde "HH:MM:SS" de hoy
+function minutosDesde(hora) {
+  const [h, m, s] = String(hora || "").split(":").map(Number);
+  if (!isFinite(h)) return Infinity;
+  const ahora = new Date();
+  return (ahora.getHours() * 3600 + ahora.getMinutes() * 60 + ahora.getSeconds() - (h * 3600 + m * 60 + (s || 0))) / 60;
+}
+
+function el(tag, clase, textoContenido) {
+  const e = document.createElement(tag);
+  if (clase) e.className = clase;
+  if (textoContenido !== undefined) e.textContent = textoContenido;
+  return e;
+}
+
+// ======================= MAPA =======================
+const mapa = L.map("mapa").setView([14.6349, -90.5069], 8);      // vista inicial: Guatemala
+L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png", {
+  maxZoom: 19,
+  referrerPolicy: "strict-origin-when-cross-origin",
+  attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
+}).addTo(mapa);
+
+const capaTecnicos = L.layerGroup().addTo(mapa);
+const capaRecorridos = L.layerGroup().addTo(mapa);
+const marcadores = {};          // id → marcador del técnico
+let colorPorId = {};
+let primeraCarga = true;
+let temporizador = null;
+
+function colorDe(id) {
+  if (!colorPorId[id]) colorPorId[id] = COLORES[Object.keys(colorPorId).length % COLORES.length];
+  return colorPorId[id];
+}
+
+function claseSenal(minutos, esHoy) {
+  if (!esHoy) return null;
+  if (minutos <= MIN_SENAL_OK) return ["ok", "en línea"];
+  if (minutos <= MIN_SENAL_TARDE) return ["tarde", `hace ${Math.round(minutos)} min`];
+  return ["perdida", minutos === Infinity ? "sin señal" : `hace ${Math.round(minutos)} min`];
+}
+
+function contenidoPopup(t) {
+  const div = el("div");
+  div.appendChild(el("b", "", t.nombre));
+  div.appendChild(el("div", "", "Empleado: " + (t.empleado || "-") + (t.unidad ? " · " + t.unidad : "")));
+  if (t.tipo_asignacion && t.tipo_asignacion !== "-")
+    div.appendChild(el("div", "", "📋 " + t.tipo_asignacion + (t.llamada_servicio ? " · Llamada " + t.llamada_servicio : "")));
+  div.appendChild(el("div", "km", "🚗 " + (t.km || "0.00") + " km recorridos hoy"));
+  if (t.alerta) { const al = el("div", "", t.alerta); al.style.color = "#b91c1c"; div.appendChild(al); }
+  div.appendChild(el("div", "", "Estado: " + (t.estado || "-")));
+  div.appendChild(el("div", "", "Última acción: " + (t.ultima_accion || "-") + " (" + (t.hora || "") + ")"));
+  div.appendChild(el("div", "", "Última señal GPS: " + (t.ultima_senal || "-")));
+  const a = el("a", "", "Abrir en Google Maps");
+  a.href = `https://www.google.com/maps?q=${t._lat},${t._lng}`;
+  a.target = "_blank"; a.rel = "noopener";
+  div.appendChild(a);
+  return div;
+}
+
+// ======================= CARGA DE DATOS =======================
+async function cargar() {
+  const s = leerSesion();
+  if (!s) { mostrarLogin(""); return; }
+  $("lblGerente").textContent = "👤 " + s.nombre;
+  $("btnSalir").classList.remove("oculto");
+  const fecha = $("fecha").value;
+  const esHoy = fecha === hoy();
+
+  let datos;
+  try {
+    datos = await api("mapa", { fecha });
+  } catch (e) {
+    mostrarAviso("⚠️ No se pudo conectar con el script de Google. Revisa tu internet y que la implementación tenga acceso para \"Cualquier usuario\". Reintentando...");
+    return;
+  }
+  if (datos.error === "sesion" || datos.error === "permiso") {
+    mostrarLogin(datos.mensaje || "Inicia sesión.");
+    return;
+  }
+  if (!datos || !Array.isArray(datos.tecnicos) || !Array.isArray(datos.puntos)) {
+    mostrarAviso("⚠️ El script de Google no está actualizado. En Apps Script pega el Code.gs nuevo y publica con " +
+      "Implementar → Gestionar implementaciones → ✏️ → Nueva versión. Revisa también que URL_API sea la misma que la de index.html.");
+    return;
+  }
+
+  try {
+    dibujar(datos, esHoy);
+  } catch (e) {
+    mostrarAviso("⚠️ Error al dibujar el mapa: " + e.message);
+    return;
+  }
+  $("actualizado").textContent = "Actualizado " + new Date().toLocaleTimeString("es", { hour12: false });
+}
+
+function dibujar(datos, esHoy) {
+  capaTecnicos.clearLayers();
+  capaRecorridos.clearLayers();
+  Object.keys(marcadores).forEach(k => delete marcadores[k]);
+
+  // Agrupa los puntos por técnico (jornada)
+  const puntosPorId = {};
+  datos.puntos.forEach(p => {
+    const lat = num(p.lat), lng = num(p.lng);
+    if (!coordValida(lat, lng)) return;
+    (puntosPorId[p.id] = puntosPorId[p.id] || []).push({ ...p, lat, lng });
+  });
+  Object.values(puntosPorId).forEach(lista => lista.sort((a, b) => a.hora.localeCompare(b.hora)));
+
+  const limites = [];
+  const lista = $("lista");
+  lista.innerHTML = "";
+  if (!datos.tecnicos.length) lista.appendChild(el("div", "vacio", "No hay técnicos con jornada en esta fecha."));
+
+  datos.tecnicos.forEach(t => {
+    const color = colorDe(t.id);
+    const recorrido = puntosPorId[t.id] || [];
+    const ultimo = recorrido[recorrido.length - 1];
+    t._lat = num(t.lat); t._lng = num(t.lng);
+    if (!coordValida(t._lat, t._lng) && ultimo) { t._lat = ultimo.lat; t._lng = ultimo.lng; }
+    const tieneUbic = coordValida(t._lat, t._lng);
+    const senal = claseSenal(minutosDesde(t.ultima_senal), esHoy);
+
+    // Recorrido + puntos fijos de las marcas
+    if ($("verRecorridos").checked && recorrido.length) {
+      L.polyline(recorrido.map(p => [p.lat, p.lng]), { color, weight: 4, opacity: .7 }).addTo(capaRecorridos);
+      recorrido.filter(p => p.evento && p.evento !== "Rastreo").forEach(p => {
+        L.circleMarker([p.lat, p.lng], { radius: 6, color: "#fff", weight: 2, fillColor: color, fillOpacity: 1 })
+          .bindTooltip(el("span", "", `${t.nombre}: ${p.evento} · ${p.hora}`))   // como texto, nunca como HTML
+          .addTo(capaRecorridos);
+      });
+      recorrido.forEach(p => limites.push([p.lat, p.lng]));
+    }
+
+    // Marcador actual con nombre
+    if (tieneUbic) {
+      const icono = el("div", "marcador" + (senal && senal[0] === "perdida" ? " sin-senal" : ""));
+      const circulo = el("div", "circulo"); circulo.style.background = color;
+      icono.appendChild(circulo);
+      icono.appendChild(el("div", "etiqueta", t.nombre));
+      const m = L.marker([t._lat, t._lng], {
+        icon: L.divIcon({ html: icono, className: "", iconSize: null, iconAnchor: [9, 9] })
+      }).bindPopup(contenidoPopup(t)).addTo(capaTecnicos);
+      marcadores[t.id] = m;
+      limites.push([t._lat, t._lng]);
+    }
+
+    // Tarjeta en la lista lateral
+    const tarjeta = el("div", "tec");
+    const fila = el("div", "nombre");
+    const punto = el("span", "punto"); punto.style.background = color;
+    fila.appendChild(punto);
+    fila.appendChild(el("span", "", t.nombre));
+    if (senal) fila.appendChild(el("span", "senal " + senal[0], senal[1]));
+    tarjeta.appendChild(fila);
+    tarjeta.appendChild(el("div", "detalle", t.estado || ""));
+    if (t.unidad) tarjeta.appendChild(el("div", "detalle", "🚚 " + t.unidad));
+    tarjeta.appendChild(el("div", "detalle km", "🚗 " + (t.km || "0.00") + " km hoy"));
+    tarjeta.appendChild(el("div", "detalle",
+      `${t.empleado || ""} · Llamada ${t.llamada_servicio || "-"} · ${t.ultima_accion || ""} ${t.hora || ""}` + (tieneUbic ? "" : " · 📍 sin ubicación")));
+    if (t.alerta) { const al = el("div", "detalle", t.alerta); al.style.color = "#b91c1c"; tarjeta.appendChild(al); }
+    tarjeta.onclick = () => {
+      if (marcadores[t.id]) { mapa.setView(marcadores[t.id].getLatLng(), 15); marcadores[t.id].openPopup(); }
+    };
+    lista.appendChild(tarjeta);
+  });
+
+  if (primeraCarga && limites.length) {
+    mapa.fitBounds(limites, { padding: [40, 40], maxZoom: 15 });
+    primeraCarga = false;
+  }
+  window._limites = limites;
+}
+
+function mostrarAviso(texto) {
+  const lista = $("lista");
+  lista.innerHTML = "";
+  const aviso = el("div", "vacio", texto);
+  aviso.style.color = "#b91c1c";
+  lista.appendChild(aviso);
+  $("actualizado").textContent = "";
+}
+
+function programarRefresco() {
+  clearInterval(temporizador);
+  if ($("fecha").value === hoy()) temporizador = setInterval(cargar, ACTUALIZAR_CADA_MS);
+}
+
+// ======================= EVENTOS =======================
+$("fecha").value = hoy();
+$("fecha").onchange = () => { primeraCarga = true; colorPorId = {}; cargar(); programarRefresco(); };
+$("verRecorridos").onchange = cargar;
+$("btnTodos").onclick = () => { if (window._limites && window._limites.length) mapa.fitBounds(window._limites, { padding: [40, 40], maxZoom: 15 }); };
+$("btnEntrar").onclick = async () => {
+  const usuario = $("usuario").value.trim(), codigo = $("codigo").value.trim();
+  if (!usuario) { $("loginError").textContent = "Escribe tu usuario."; return; }
+  if (!/^\d{6}$/.test(codigo)) { $("loginError").textContent = "El código de la app tiene 6 dígitos."; return; }
+  $("btnEntrar").disabled = true;
+  try {
+    const r = await api("entrar_autenticador", { usuario, codigo });
+    if (!r.ok) { $("loginError").textContent = r.mensaje; return; }
+    guardarSesion({ token: r.token, usuario: r.usuario, nombre: r.nombre, rol: r.rol, empleado: r.empleado, exp: r.exp });
+    $("loginError").textContent = "";
+    $("codigo").value = "";
+    $("login").classList.add("oculto");
+    primeraCarga = true;
+    cargar();
+  } catch (e) { $("loginError").textContent = "Sin conexión. Intenta de nuevo."; }
+  finally { $("btnEntrar").disabled = false; }
+};
+$("codigo").addEventListener("input", e => e.target.value = e.target.value.replace(/\D/g, "").slice(0, 6));
+$("codigo").addEventListener("keydown", e => { if (e.key === "Enter") $("btnEntrar").click(); });
+$("usuario").addEventListener("keydown", e => { if (e.key === "Enter") $("codigo").focus(); });
+$("btnSalir").onclick = async () => { try { await api("cerrar_sesion"); } catch (e) {} mostrarLogin("Sesión cerrada."); };
+
+cargar();
+programarRefresco();
+</script>
+</body>
+</html>
