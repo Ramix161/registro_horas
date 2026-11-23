@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- Registro de Horas · index.html · v1.14.1 · 2026-11-22 -->
+<!-- Registro de Horas · index.html · v1.15 · 2026-11-23 -->
 <html lang="es">
 <head>
 <meta charset="UTF-8">
@@ -127,17 +127,23 @@
   <div class="error" id="errorLogin"></div>
 </div>
 
-<!-- ============ GERENTE: vincular Microsoft Authenticator ============ -->
+<!-- ============ TODOS: vincular Microsoft Authenticator ============ -->
 <div id="pantallaEnrolar" class="card oculto">
   <b>🔐 Vincula Microsoft Authenticator</b>
-  <p class="info">Solo se hace una vez. Desde mañana entrarás con el código de la app, sin correos.</p>
+  <p class="info">Solo se hace una vez. Desde ahora entrarás con el código de la app, sin correos.</p>
   <ol class="info" style="padding-left:18px">
-    <li>Abre <b>Microsoft Authenticator</b> en tu celular → <b>+</b> → <b>Otra cuenta (Google, Facebook, etc.)</b>.</li>
-    <li>Escanea este código QR. Si no puedes, elige "Escribir código manualmente" y copia la clave de abajo.</li>
-    <li>Escribe el código de 6 dígitos que aparece en la app.</li>
+    <li>Instala <b>Microsoft Authenticator</b> (Play Store o App Store) y ábrela → <b>+</b> → <b>Otra cuenta (Google, Facebook, etc.)</b>.</li>
+    <li><b>Si estás en una computadora:</b> escanea el código QR con el celular.<br>
+        <b>Si estás en el mismo celular:</b> toca <b>📋 Copiar clave</b>, en la app elige <b>"Escribir código manualmente"</b>,
+        pon tu nombre como nombre de cuenta y pega la clave.</li>
+    <li>Escribe aquí el código de 6 dígitos que aparece en la app.</li>
   </ol>
   <div style="text-align:center"><img id="qrApp" alt="Código QR para Microsoft Authenticator" style="width:220px;height:220px;image-rendering:pixelated"></div>
   <p class="info" style="text-align:center">Clave: <b id="claveApp" style="font-family:monospace;letter-spacing:1px;word-break:break-all"></b></p>
+  <div class="fila-botones">
+    <button class="btn-secundario" id="btnCopiarClave">📋 Copiar clave</button>
+    <a class="btn-secundario" id="lnkAbrirApp" style="flex:1;text-align:center;text-decoration:none;color:#111;border-radius:8px;padding:12px 16px">📲 Abrir en la app</a>
+  </div>
   <label>Código de la app
     <input id="codigoEnrolar" inputmode="numeric" maxlength="6" placeholder="000000" autocomplete="one-time-code">
   </label>
@@ -225,7 +231,7 @@
   </div>
 </div>
 
-<p class="info" style="text-align:center;margin-top:20px">Versión v1.14.1 · 2026-11-22</p>
+<p class="info" style="text-align:center;margin-top:20px">Versión v1.15 · 2026-11-23</p>
 
 <!-- Aviso de asignación nueva (técnico) -->
 <div id="modalAviso" class="modal oculto">
@@ -257,7 +263,7 @@
 <script>
 // ======================= CONFIGURACIÓN =======================
 const URL_API = "https://script.google.com/macros/s/AKfycbyjQOBh_bHY-DS5z3v3d3hRBQ4NVNUW7kE6VM-u97vy_dl4AvQLu3Ry8hDNU--djwgOaQ/exec";
-const VERSION = "v1.14.1 · 2026-11-22";
+const VERSION = "v1.15 · 2026-11-23";
 const CLAVE_LOCAL = "jornadaV114";            // (la v13 usaba otra clave; no se mezclan)
 const CLAVE_SESION = "sesionRH";
 const RASTREO_TRASLADO_MS = 1 * 60 * 1000;    // GPS cada 1 minuto, SOLO durante los traslados
@@ -397,8 +403,8 @@ function cambiarModoLogin(modo) {
   $("tabGerente").classList.toggle("activa", modo === "gerente");
   mostrar("lblCampoUsuario", modo === "tecnico");
   mostrar("lblCampoGerente", modo === "gerente");
-  mostrar("bloqueApp", modo === "gerente");                 // gerentes: Microsoft Authenticator
-  mostrar("btnPedirCodigo", modo === "tecnico");            // técnicos: código por correo
+  mostrar("bloqueApp", true);                               // v1.15: todos entran con Microsoft Authenticator
+  mostrar("btnPedirCodigo", false);                         // el correo solo aparece en "Primera vez"
   $("errorLogin").textContent = "";
 }
 
@@ -412,17 +418,23 @@ async function cargarListaTecnicos() {
   } catch (e) {}
 }
 
-async function pedirCodigo() {
-  $("errorLogin").textContent = "";
+// Usuario según la pestaña: técnico = nombre de la lista; gerente = usuario escrito
+function usuarioDelFormulario() {
   if (modoLogin === "tecnico") {
     const nombre = $("loginNombre").value.trim().toLowerCase();
     const t = tecnicosLista.find(x => x.nombre.toLowerCase() === nombre);
-    if (!t) { $("errorLogin").textContent = "Elige tu nombre de la lista."; return; }
-    usuarioLogin = t.usuario;
-  } else {
-    usuarioLogin = $("loginUsuario").value.trim();
-    if (!usuarioLogin) { $("errorLogin").textContent = "Escribe tu usuario."; return; }
+    if (!t) { $("errorLogin").textContent = "Elige tu nombre de la lista."; return null; }
+    return t.usuario;
   }
+  const u = $("loginUsuario").value.trim();
+  if (!u) { $("errorLogin").textContent = "Escribe tu usuario."; return null; }
+  return u;
+}
+
+async function pedirCodigo() {
+  $("errorLogin").textContent = "";
+  usuarioLogin = usuarioDelFormulario();
+  if (!usuarioLogin) return;
   $("btnPedirCodigo").disabled = true;
   try {
     const r = await api("pedir_codigo", { usuario: usuarioLogin });
@@ -475,8 +487,9 @@ async function entrar() {
 
 // ---------- Gerentes: entrar con Microsoft Authenticator ----------
 async function entrarConApp() {
-  const usuario = $("loginUsuario").value.trim(), codigo = $("loginApp").value.trim();
-  if (!usuario) { $("errorLogin").textContent = "Escribe tu usuario."; return; }
+  $("errorLogin").textContent = "";
+  const usuario = usuarioDelFormulario(), codigo = $("loginApp").value.trim();
+  if (!usuario) return;
   if (!/^\d{6}$/.test(codigo)) { $("errorLogin").textContent = "El código de la app tiene 6 dígitos."; return; }
   $("btnEntrarApp").disabled = true;
   try {
@@ -507,6 +520,8 @@ async function iniciarEnrolamiento(token) {
     const r = await api("totp_iniciar", { token });
     if (!r.ok) { $("errorEnrolar").textContent = r.mensaje || "No se pudo iniciar."; return; }
     $("claveApp").textContent = r.secreto.replace(/(.{4})/g, "$1 ").trim();
+    $("claveApp").dataset.clave = r.secreto;
+    $("lnkAbrirApp").href = r.uri;           // en algunos celulares abre directo la app de autenticación
     if (window.qrcode) {
       const qr = qrcode(0, "M");
       qr.addData(r.uri);
@@ -874,7 +889,7 @@ function siguientePaso() {
     estado.asig = null; estado.terminadas += 1;
     estado.act.asig = null;
     guardarLocal(); dibujar();
-    api("asignacion_evento", { id: a.id, evento: "terminada" }).catch(() => {});
+    enviarConReintento("asignacion_evento", { id: a.id, evento: "terminada" });
     $("mensaje").textContent = "✅ Asignación terminada. Quedas esperando una nueva asignación.";
     sondearAsignacion();
     return;
@@ -885,6 +900,64 @@ function siguientePaso() {
 function contestar(si) {
   const p = PASOS[estado.paso];
   avanzar(si ? p.si : p.no, { evento: `${p.pregunta} ${si ? "Sí" : "No"}`, tipoEvento: "otro" });
+}
+
+// ---------- Envíos que no pueden perderse (se reintentan si no hay señal) ----------
+async function enviarConReintento(accion, datos) {
+  try {
+    return await api(accion, datos);           // un rechazo del servidor no se reintenta
+  } catch (e) {
+    if (e.message === "sesion" || !estado) return null;
+    estado.cola = estado.cola || [];
+    estado.cola.push({ accion, datos });
+    guardarLocal();
+    return null;
+  }
+}
+
+async function vaciarCola() {
+  if (!estado || !estado.cola || !estado.cola.length) return;
+  const pendientes = estado.cola.slice();
+  estado.cola = [];
+  for (let i = 0; i < pendientes.length; i++) {
+    try { await api(pendientes[i].accion, pendientes[i].datos); }
+    catch (e) { estado.cola = pendientes.slice(i).concat(estado.cola); break; }   // sigue sin señal: se guarda el resto
+  }
+  guardarLocal();
+}
+
+// ---------- v1.15: el técnico registra su propia llamada de servicio ----------
+async function registrarLlamada() {
+  if (estado.asig || estado.paso || estado.interr) return;
+  let titulo = "📞 Escribe el número de tu llamada de servicio (5 dígitos)";
+  for (;;) {
+    const r = await pedirDatos({ titulo, campo: { placeholder: "00000", numerico: true } });
+    if (!r) return;
+    const llamada = r.campo.replace(/\D/g, "");
+    if (!/^\d{5}$/.test(llamada)) { titulo = "⚠️ Deben ser exactamente 5 dígitos. Escríbela de nuevo:"; continue; }
+    $("mensaje").textContent = "Registrando la llamada...";
+    const id = (Date.now().toString(36) + Math.random().toString(36).slice(2)).replace(/[^a-z0-9]/g, "").slice(0, 10).padEnd(10, "0");
+    let asig = null, sinSenal = false;
+    try {
+      const x = await api("autoasignar", { llamada_servicio: llamada, id });
+      if (!x.ok) { $("mensaje").textContent = "❌ " + x.mensaje; return; }
+      asig = x.asignacion;
+    } catch (e) {
+      if (e.message === "sesion") return;
+      // Sin internet: empieza igual; la llamada se registra en la hoja cuando vuelva la señal
+      sinSenal = true;
+      asig = { id, tipo: "Llamada de servicio", flujo: "servicio", categoria: null, llamada_servicio: llamada,
+               detalle: "", asignado_por: "Técnico (autoasignada)", creado: "" };
+      estado.cola = estado.cola || [];
+      estado.cola.push({ accion: "autoasignar", datos: { llamada_servicio: llamada, id } });
+    }
+    if (estado.asig || estado.paso) { $("mensaje").textContent = ""; return; }   // por si llegó otra cosa mientras tanto
+    estado.asig = asig;
+    avanzar("prep_firma", { evento: "Llamada registrada por el técnico: " + llamada, tipoEvento: "otro", bloquear: true });
+    $("mensaje").textContent = sinSenal ? "📶 Sin señal: tu llamada " + llamada + " se registrará sola al volver el internet. Comienza tu preparación."
+                                        : "✅ Llamada " + llamada + " registrada. Comienza tu preparación.";
+    return;
+  }
 }
 
 // ---------- Entrenamiento (solo sin asignación) ----------
@@ -928,7 +1001,9 @@ function terminarInterrupcion(silencioso) {
 
 // ---------- Asignaciones: aviso del gerente ----------
 async function sondearAsignacion() {
-  if (!estado || !sesion || sesion.rol !== "tecnico" || estado.cerrando || estado.aviso) return;
+  if (!estado || !sesion || sesion.rol !== "tecnico") return;
+  await vaciarCola();
+  if (!estado || estado.cerrando || estado.aviso) return;
   const libre = !estado.asig && !estado.paso;
   try {
     const r = await api("mi_asignacion", { libre, actual: estado.asig ? estado.asig.id : "" });
@@ -968,7 +1043,7 @@ function aceptarAsignacion() {
   estado.aviso = null;
   if (estado.interr) terminarInterrupcion(true);       // comida o pausa terminan
   estado.asig = a;
-  api("asignacion_evento", { id: a.id, evento: "aceptada" }).catch(() => {});
+  enviarConReintento("asignacion_evento", { id: a.id, evento: "aceptada" });
   avanzar(a.flujo === "servicio" ? "prep_firma" : "v_listo",
           { evento: "Asignación aceptada: " + a.tipo + (a.llamada_servicio ? " " + a.llamada_servicio : ""), tipoEvento: "otro", bloquear: true });
   $("mensaje").textContent = "";
@@ -1002,7 +1077,7 @@ async function cierreAnticipado() {
                   extra: { motivo_tipo: "cierre", motivo: r.motivo, motivo_otro: r.esOtro } });
   estado.asig = null; estado.act.asig = null; estado.cierreAnticipado = r.texto;
   guardarLocal(); dibujar();
-  api("asignacion_evento", { id: a.id, evento: "cerrada", motivo: r.texto }).catch(() => {});
+  enviarConReintento("asignacion_evento", { id: a.id, evento: "cerrada", motivo: r.texto });
   if (await pedirSiNo("¿Terminas tu jornada?")) cerrarJornada(true);
 }
 
@@ -1030,6 +1105,7 @@ async function finalizarJornada() {
 async function enviarJornada() {
   $("mensaje").textContent = "Enviando tu jornada...";
   await Promise.all(pendientes);
+  await vaciarCola();
   try {
     const r = await api("jornada", {
       id: estado.id, fecha: estado.fecha, estado: estado.cierreAnticipado ? "Cerrada anticipada" : "Completa",
@@ -1076,7 +1152,7 @@ async function deshacer() {
     estado.act = { cod: reabrir.actividad, ini: reabrir.inicio_ts, ubic: reabrir.ubic_inicio, detalle: reabrir.detalle,
                    asig: reabrir.asignacion ? { id: reabrir.asignacion, tipo: reabrir.tipo_asignacion, llamada_servicio: reabrir.llamada_servicio } : null };
   }
-  if (!estado.asig && h.asig) api("asignacion_evento", { id: h.asig.id, evento: "reabierta" }).catch(() => {});
+  if (!estado.asig && h.asig) enviarConReintento("asignacion_evento", { id: h.asig.id, evento: "reabierta" });
   estado.paso = h.paso; estado.asig = h.asig; estado.interr = h.interr;
   guardarLocal();
   $("mensaje").textContent = `✅ Se deshizo "${h.etiqueta}" con autorización del gerente.`;
@@ -1191,10 +1267,12 @@ function dibujar() {
     t.textContent = "Estás en entrenamiento. Si tu gerente te asigna trabajo, te avisaremos aquí.";
     zona.appendChild(t);
     zona.appendChild(boton("⏹ Terminar entrenamiento", "btn-principal", terminarEntrenamiento));
+    zona.appendChild(boton("📞 Registrar llamada de servicio", "btn-secundario ancho", registrarLlamada));
   } else {                                                     // ---- esperando asignación
     const t = document.createElement("p"); t.className = "texto-paso";
-    t.textContent = "Tu gerente te enviará una llamada de servicio o un viaje. Esta pantalla se actualiza sola.";
+    t.textContent = "Si ya tienes una llamada de servicio, regístrala aquí. También puede llegarte una asignación de tu gerente.";
     zona.appendChild(t);
+    zona.appendChild(boton("📞 Registrar llamada de servicio", "btn-principal", registrarLlamada));
     zona.appendChild(boton("🎓 Iniciar entrenamiento (opcional)", "btn-secundario ancho", iniciarEntrenamiento));
   }
 
@@ -1437,6 +1515,11 @@ $("btnPedirCodigo").onclick = pedirCodigo;
 $("btnEntrarApp").onclick = entrarConApp;
 $("lnkPrimeraVez").onclick = () => { mostrar("bloqueApp", false); mostrar("btnPedirCodigo", true); $("errorLogin").textContent = ""; };
 $("btnConfirmarApp").onclick = confirmarEnrolamiento;
+$("btnCopiarClave").onclick = async () => {
+  const clave = $("claveApp").dataset.clave || "";
+  try { await navigator.clipboard.writeText(clave); $("btnCopiarClave").textContent = "✅ Clave copiada"; }
+  catch (e) { $("btnCopiarClave").textContent = "Mantén presionada la clave para copiarla"; }
+};
 ["loginApp", "codigoEnrolar"].forEach(id => $(id).addEventListener("input", e => e.target.value = e.target.value.replace(/\D/g, "").slice(0, 6)));
 $("loginApp").addEventListener("keydown", e => { if (e.key === "Enter") entrarConApp(); });
 $("codigoEnrolar").addEventListener("keydown", e => { if (e.key === "Enter") confirmarEnrolamiento(); });
