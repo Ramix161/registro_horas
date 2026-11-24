@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- Registro de Horas · index.html · v1.15 · 2026-11-23 -->
+<!-- Registro de Horas · index.html · v1.15.1 · 2026-11-24 -->
 <html lang="es">
 <head>
 <meta charset="UTF-8">
@@ -231,7 +231,7 @@
   </div>
 </div>
 
-<p class="info" style="text-align:center;margin-top:20px">Versión v1.15 · 2026-11-23</p>
+<p class="info" style="text-align:center;margin-top:20px">Versión v1.15.1 · 2026-11-24</p>
 
 <!-- Aviso de asignación nueva (técnico) -->
 <div id="modalAviso" class="modal oculto">
@@ -263,7 +263,7 @@
 <script>
 // ======================= CONFIGURACIÓN =======================
 const URL_API = "https://script.google.com/macros/s/AKfycbyjQOBh_bHY-DS5z3v3d3hRBQ4NVNUW7kE6VM-u97vy_dl4AvQLu3Ry8hDNU--djwgOaQ/exec";
-const VERSION = "v1.15 · 2026-11-23";
+const VERSION = "v1.15.1 · 2026-11-24";
 const CLAVE_LOCAL = "jornadaV114";            // (la v13 usaba otra clave; no se mezclan)
 const CLAVE_SESION = "sesionRH";
 const RASTREO_TRASLADO_MS = 1 * 60 * 1000;    // GPS cada 1 minuto, SOLO durante los traslados
@@ -576,6 +576,7 @@ function iniciarSegunRol() {
     return;
   }
   // Técnico
+  if (estado && estado.enviada) estado = null;      // la jornada anterior ya se guardó en la hoja
   mostrar("cardMisJornadas", true);
   cargarMotivos();
   cargarMisJornadas();
@@ -1209,6 +1210,17 @@ function dibujarInfoRastreo(pos) {
 }
 
 // ======================= PANTALLA DEL TÉCNICO (sin cronómetros ni horas) =======================
+// v1.15.1: la jornada ya se envió; vuelve a la pantalla de inicio para empezar otra
+function nuevaJornada() {
+  if (!estado || !estado.enviada) return;
+  estado = null;
+  $("mensaje").textContent = "";
+  mostrar("pantallaJornada", false);
+  mostrar("pantallaInicio", true);
+  $("btnIniciar").disabled = false;
+  cargarMisJornadas();
+}
+
 function mostrarJornada() {
   mostrar("pantallaInicio", false);
   mostrar("pantallaJornada", true);
@@ -1242,6 +1254,7 @@ function dibujar() {
 
   if (estado.cerrando) {
     if (!estado.enviada) zona.appendChild(boton("🔁 Reintentar envío", "btn-principal", enviarJornada));
+    else zona.appendChild(boton("▶ Iniciar una nueva jornada", "btn-principal", nuevaJornada));
     return;
   }
 
@@ -1394,7 +1407,7 @@ function dibujarTecnicosGerente() {
   const cont = $("gTecnicos");
   cont.innerHTML = "";
   const ausentes = new Set(panel.jornadas.filter(j => j.fecha === panel.hoy && j.estado === "Ausencia").map(j => j.usuario));
-  const cerradas = new Set(panel.jornadas.filter(j => j.fecha === panel.hoy && j.estado !== "Ausencia").map(j => j.usuario));
+  const cerradas = new Set(panel.jornadas.filter(j => j.fecha === panel.hoy && j.estado !== "Ausencia").map(j => j.id));
   panel.tecnicos.forEach(t => {
     const ec = ultimaFila(panel.encurso, t.usuario);
     const res = panel.resumen[t.usuario] || { verde: 0, naranja: 0, rojo: 0 };
@@ -1415,7 +1428,7 @@ function dibujarTecnicosGerente() {
       const [h, m] = (t.hora_entrada || "08:00").split(":").map(Number);
       const entrada = new Date(ahoraServidor()); entrada.setHours(h, m, 0, 0);
       if (ahoraServidor() > entrada.getTime()) alertas.push(`⚠️ No ha iniciado (entrada ${t.hora_entrada})`);
-    } else if (cerradas.has(t.usuario) || /terminada/i.test(ec.estado)) {
+    } else if (cerradas.has(ec.id) || /terminada/i.test(ec.estado)) {
       estadoTxt.textContent = "🏁 Jornada cerrada";
     } else {
       const cat = CATEGORIAS[ec.actividad];
